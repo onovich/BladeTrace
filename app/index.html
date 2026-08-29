@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="BladeTrace 是一个通过多段三阶贝塞尔轨迹与分段缓动模拟弹刀节奏的浏览器原型。">
+  <title>斩迹 (BladeTrace) · 弹刀轨迹模拟器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="game-container" aria-labelledby="game-title">
+    <header id="enemy-hud" class="hud-panel hud-panel--enemy">
+      <p class="eyebrow">BEZIER DEFLECTION PROTOTYPE</p>
+      <h1 id="game-title" class="hud-title">斩迹 <span>BladeTrace</span></h1>
+      <div class="combatant-row">
+        <span>苇名剑圣 · 敌方</span>
+        <output id="enemy-hp-text" aria-label="敌方生命值">HP 100 / 100</output>
+      </div>
+      <div class="bar-label-row">
+        <span>架势值 <span lang="en">Posture</span></span>
+        <output id="enemy-posture-text">0%</output>
+      </div>
+      <div class="bar-outer posture-outer" role="progressbar" aria-label="敌方架势值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="enemy-posture-bar" class="bar-inner posture-inner"></div>
+      </div>
+      <div class="bar-outer enemy-hp-outer" role="progressbar" aria-label="敌方生命值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+        <div id="enemy-hp-bar" class="bar-inner enemy-hp-inner"></div>
+      </div>
+    </header>
+
+    <section class="canvas-frame" aria-label="战斗轨迹画布">
+      <canvas id="gameCanvas" width="600" height="650" role="img" aria-label="敌方剑锋沿贝塞尔轨迹接近玩家判定区的战斗可视化"></canvas>
+      <p id="timing-feedback" class="timing-feedback" aria-live="polite" aria-atomic="true"></p>
+      <p id="window-indicator" class="window-indicator" aria-live="polite">判定窗 150ms</p>
+    </section>
+
+    <section id="player-hud" class="hud-panel hud-panel--player" aria-label="玩家状态">
+      <div class="combatant-row">
+        <span>狼 · 玩家</span>
+        <output id="player-hp-text" aria-label="玩家生命值">HP 100 / 100</output>
+      </div>
+      <div class="bar-outer hp-outer" role="progressbar" aria-label="玩家生命值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+        <div id="player-hp-bar" class="bar-inner hp-inner"></div>
+      </div>
+      <p id="player-status" class="player-status" role="status" aria-live="polite">准备就绪 · Space 发起攻击</p>
+    </section>
+
+    <section id="controls-overlay" aria-label="战斗控制">
+      <div class="control-grid">
+        <div class="control-group">
+          <label for="pattern-select">选择招式</label>
+          <select id="pattern-select">
+            <option value="delayed">苇名流·延迟斩</option>
+            <option value="triple">三连斩·快速变奏</option>
+            <option value="overhead">跳劈·极速下斩</option>
+            <option value="spiral-thrust">螺旋突刺·S 形迷踪</option>
+            <option value="deceptive-pause">伪装慢刀·迟滞暴击</option>
+            <option value="ashina-flurry">苇名连斩·交错突袭</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="window-select">弹反难度</label>
+          <select id="window-select">
+            <option value="pattern">招式内置判定窗</option>
+            <option value="220">简单 · 220ms</option>
+            <option value="150" selected>修罗 · 150ms</option>
+            <option value="90">苦难 · 90ms</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="toggle-group" aria-label="显示和声音选项">
+        <label class="toggle-item" for="show-wireframe">
+          <input id="show-wireframe" type="checkbox" checked>
+          <span>显示轨迹与控制点</span>
+        </label>
+        <label class="toggle-item" for="auto-loop">
+          <input id="auto-loop" type="checkbox">
+          <span>敌人自动连续发招</span>
+        </label>
+        <label class="toggle-item" for="sound-toggle">
+          <input id="sound-toggle" type="checkbox" checked>
+          <span>音效</span>
+        </label>
+      </div>
+
+      <div class="button-group">
+        <button id="btn-attack" class="action-btn" type="button" aria-keyshortcuts="Enter Space">敌方发起攻击 <kbd>Space</kbd></button>
+        <button id="btn-parry" class="parry-btn" type="button" aria-keyshortcuts="Space">弹反 <kbd>Space</kbd></button>
+        <button id="btn-reset" class="reset-btn" type="button">重置战斗</button>
+      </div>
+
+      <p class="help-text">Space：待机时发起攻击、攻击中弹反；Enter：发起攻击；也可直接点击画布弹反。</p>
+    </section>
+
+    <section id="deathblow-overlay" class="hidden" aria-live="assertive" aria-modal="true" role="dialog" aria-labelledby="deathblow-title">
+      <h2 id="deathblow-title" class="deathblow-kanji">忍殺</h2>
+      <p class="deathblow-sub">敌方架势已崩溃 · 按 <kbd>Space</kbd> 或点击“弹反”执行处决</p>
+      <button id="btn-deathblow" class="deathblow-action" type="button">执行忍殺 <kbd>Space</kbd></button>
+    </section>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>

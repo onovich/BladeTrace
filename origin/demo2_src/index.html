@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>只狼：贝塞尔轨道弹刀模拟器 (Sekiro Deflection Engine)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>只狼：贝塞尔轨道弹刀模拟器</h1>
+      <p class="subtitle">Multi-Segment Bezier Trajectory & Easing Interpolation Simulator</p>
+    </header>
+
+    <!-- UI Status Bars -->
+    <div class="status-panel">
+      <div class="character-card enemy-card">
+        <div class="card-header">
+          <span class="name">敌方：剑圣 (Enemy)</span>
+          <span class="hp-text" id="enemy-hp-text">HP: 100/100</span>
+        </div>
+        <div class="bar-container">
+          <div class="bar-fill enemy-hp" id="enemy-hp-bar" style="width: 100%;"></div>
+        </div>
+        <div class="posture-container">
+          <div class="posture-label">架势条 (Posture): <span id="posture-text">0%</span></div>
+          <div class="bar-container posture-bg">
+            <div class="bar-fill posture-fill" id="posture-bar" style="width: 0%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vs-badge">VS</div>
+
+      <div class="character-card player-card">
+        <div class="card-header">
+          <span class="name">玩家：狼 (Player)</span>
+          <span class="hp-text" id="player-hp-text">HP: 100/100</span>
+        </div>
+        <div class="bar-container">
+          <div class="bar-fill player-hp" id="player-hp-bar" style="width: 100%;"></div>
+        </div>
+        <div class="status-indicator" id="player-status">准备就绪</div>
+      </div>
+    </div>
+
+    <!-- Canvas Game Area -->
+    <div class="canvas-wrapper">
+      <canvas id="gameCanvas" width="900" height="500"></canvas>
+      <div class="overlay-kanji" id="deathblowOverlay">忍殺</div>
+      <div class="timing-feedback" id="timingFeedback">PERFECT PARRY!</div>
+    </div>
+
+    <!-- Controls & Configuration -->
+    <div class="control-panel">
+      <div class="control-group">
+        <label for="patternSelect">选择敌人剑招预设：</label>
+        <select id="patternSelect" class="styled-select">
+          <option value="delayed_heavy">招式 1: 蓄力延迟下劈 (2段: 蓄力慢刀 + 骤降爆弹)</option>
+          <option value="ashina_flurry">招式 2: 苇名三连斩 (3段: 连续弧形变奏突袭)</option>
+          <option value="spiral_thrust">招式 3: 螺旋突刺 (2段: S形蓄力 + 疾速直突)</option>
+          <option value="deceptive_pause">招式 4: 芦苇地伪装慢刀 (3段: 极慢-快-迟滞-暴击)</option>
+        </select>
+      </div>
+
+      <div class="button-group">
+        <button id="attackBtn" class="btn btn-primary">发起攻击 [Enter]</button>
+        <button id="parryBtn" class="btn btn-danger">打刀弹反 [Space / 界面点击]</button>
+        <button id="resetBtn" class="btn btn-secondary">重置战斗</button>
+      </div>
+
+      <div class="toggle-group">
+        <label class="toggle-item">
+          <input type="checkbox" id="showWireframe" checked>
+          <span>显示贝塞尔控制点与轨道</span>
+        </label>
+        <label class="toggle-item">
+          <input type="checkbox" id="autoLoop">
+          <span>敌人自动连续发招</span>
+        </label>
+        <label class="toggle-item">
+          <input type="checkbox" id="soundToggle" checked>
+          <span>音效 (Web Audio API)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Instruction Info -->
+    <footer class="footer-info">
+      <h3>🎮 操作与测试指南：</h3>
+      <ul>
+        <li><b>弹反时机</b>：当敌方剑锋光标沿着贝塞尔轨道滑向右下角的玩家判定环时，在<b>进入判定圈（最后180ms）</b>按下 <code>Space</code> 或点击“打刀弹反”按钮。</li>
+        <li><b>机制说明</b>：成功弹反触发火花与反弹并积累敌方<b>架势条 (+25%)</b>；若按早或未按将导致受击（扣除玩家HP并清空敌方架势）。</li>
+        <li><b>处决（忍杀）</b>：架势条满 100% 后触发红色 <b>“忍殺”</b> 字样，此时按任意弹反键即可执行终结处决。</li>
+      </ul>
+    </footer>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
