@@ -86,8 +86,8 @@ composition:
       evidence: "The wireframe view in app/game.js renders the same control relationships."
 
 version:
-  baseline: "docs/social-preview-v1.svg and docs/social-preview-v1.png"
-  candidate: "docs/social-preview-v2.svg and docs/social-preview-v2.png; promoted to docs/social-preview.svg and docs/social-preview.png"
+  baseline: "docs/social-preview-v2.svg and docs/social-preview-v2.png"
+  candidate: "docs/social-preview-v3.svg and docs/social-preview-v3.png; promoted to docs/social-preview.svg and docs/social-preview.png"
   preservation_contract:
     identity_anchors:
       - "BladeTrace name"
@@ -99,11 +99,12 @@ version:
     allowed_changes:
       - "Conceptual recomposition of the trajectory inside a wide social-preview frame"
       - "Terminology correction from player hit zone to player hurtbox"
+      - "English-only cover annotations and spacing adjustments that preserve thumbnail legibility"
     forbidden_changes:
       - "Invented game statistics, screenshots, special attacks, or GitHub endorsement"
   comparison_scores:
     identity_fidelity: "preserved"
-    product_clarity: "improved: the target label now matches the implemented fixed player hurtbox"
+    product_clarity: "improved: every visible annotation uses one English vocabulary, including the implemented fixed player hurtbox"
     aesthetic_authorship: "preserved"
     abstraction_fit: "preserved"
     topology_fidelity: "preserved"
@@ -114,7 +115,7 @@ version:
     fragment_integrity: "preserved"
   vetoes: []
   verdict: promote
-  reason: "The candidate preserves the palette, vertical attack topology, and legibility while correcting the target label to the implemented independent player hurtbox."
+  reason: "The candidate preserves the palette, vertical attack topology, and legibility while making all visible annotations English and retaining the precise player-hurtbox terminology."
 
 output:
   svg: "docs/social-preview.svg"
@@ -122,7 +123,7 @@ output:
   review_sheet: "docs/social-preview-review.png"
   width: 1280
   height: 640
-  bytes: 58811
+  bytes: 58471
   mechanical_validation: pass
   full_size_review: pass
   thumbnail_light_review: pass
@@ -130,7 +131,8 @@ output:
   batch_contact_review: not-applicable
   retained_versions:
     - "docs/social-preview-v1.svg / .png / -review.png (baseline)"
-    - "docs/social-preview-v2.svg / .png / -review.png (candidate)"
+    - "docs/social-preview-v2.svg / .png / -review.png (previous selected version)"
+    - "docs/social-preview-v3.svg / .png / -review.png (current selected version)"
 
 authorization:
   readme_modified: true
