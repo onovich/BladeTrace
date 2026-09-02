@@ -14,11 +14,9 @@ evidence:
     - path_or_url: "app/index.html"
       proves: "The standalone browser entry point, controls, HUD, and canvas composition."
     - path_or_url: "app/game.js"
-      proves: "Multi-segment cubic Bezier trajectories, per-segment easing, a 150ms default window, and +25 posture on a perfect deflect."
-    - path_or_url: "origin/demo1_design.md"
-      proves: "The intended vertical enemy-to-player trajectory and deflection-training premise."
-    - path_or_url: "origin/demo2_design.md"
-      proves: "The data-driven trajectory, state-machine, and timing-observation intent."
+      proves: "Multi-segment cubic Bezier trajectories, per-segment easing, a 150ms default window, a fixed player hurtbox resolved at the attack endpoint, and +25 posture on a perfect deflect."
+    - path_or_url: "docs/fusion-audit.md"
+      proves: "The accepted fusion boundary: demo1 supplies the visual and interaction base, while demo2 supplies observable, data-driven combat mechanisms."
   claim_boundaries:
     - "The cover depicts a conceptual trajectory artifact, not a captured product screenshot."
     - "No browser compatibility claim is implied beyond the local Microsoft Edge runtime smoke test performed for this integration."
@@ -29,6 +27,7 @@ content:
     - "A two-segment enemy-to-player cubic Bezier path mirrors the default delayed slash."
     - "The shown 900ms and 220ms segment labels are the default delayed slash durations."
     - "The shown 150ms parry window and +25 posture outcome are implemented in app/game.js."
+    - "The target ring represents the fixed player hurtbox, which is independent from the time-only parry window."
   exclude:
     - "Unsupported special-attack mechanics such as thrust counters or sweep jumps."
     - "Unverified browser support, gameplay balance, and production-readiness claims."
@@ -37,12 +36,13 @@ cold_start_route:
   semantic_skeleton:
     objects:
       - "enemy blade origin"
-      - "player parry target"
+      - "player hurtbox target"
       - "multi-segment Bezier trajectory"
       - "timing window and posture result"
     actions:
       - "sample a trajectory over time"
-      - "open a parry window near the terminal target"
+      - "open a time-only parry window near the terminal attack point"
+      - "resolve an un-parried endpoint against the independent player hurtbox"
       - "convert a perfect deflect into enemy posture"
     topology: "A vertical enemy-to-player sequence, with a slow windup segment followed by a terminal strike segment."
     outcome: "A design-aware player can read attack rhythm and practice a precise deflect."
@@ -86,8 +86,8 @@ composition:
       evidence: "The wireframe view in app/game.js renders the same control relationships."
 
 version:
-  baseline: "none"
-  candidate: "docs/social-preview.svg and docs/social-preview.png"
+  baseline: "docs/social-preview-v1.svg and docs/social-preview-v1.png"
+  candidate: "docs/social-preview-v2.svg and docs/social-preview-v2.png; promoted to docs/social-preview.svg and docs/social-preview.png"
   preservation_contract:
     identity_anchors:
       - "BladeTrace name"
@@ -98,12 +98,23 @@ version:
       - "One clear product proof rather than a fabricated UI capture"
     allowed_changes:
       - "Conceptual recomposition of the trajectory inside a wide social-preview frame"
+      - "Terminology correction from player hit zone to player hurtbox"
     forbidden_changes:
       - "Invented game statistics, screenshots, special attacks, or GitHub endorsement"
-  comparison_scores: {}
+  comparison_scores:
+    identity_fidelity: "preserved"
+    product_clarity: "improved: the target label now matches the implemented fixed player hurtbox"
+    aesthetic_authorship: "preserved"
+    abstraction_fit: "preserved"
+    topology_fidelity: "preserved"
+    material_quality: "preserved"
+    composition: "preserved"
+    thumbnail_legibility: "pass on light and dark review-sheet surrounds"
+    line_semantics: "preserved"
+    fragment_integrity: "preserved"
   vetoes: []
   verdict: promote
-  reason: "First repository cover; no earlier cover exists to preserve."
+  reason: "The candidate preserves the palette, vertical attack topology, and legibility while correcting the target label to the implemented independent player hurtbox."
 
 output:
   svg: "docs/social-preview.svg"
@@ -111,12 +122,15 @@ output:
   review_sheet: "docs/social-preview-review.png"
   width: 1280
   height: 640
-  bytes: 58777
+  bytes: 58811
   mechanical_validation: pass
   full_size_review: pass
   thumbnail_light_review: pass
   thumbnail_dark_review: pass
   batch_contact_review: not-applicable
+  retained_versions:
+    - "docs/social-preview-v1.svg / .png / -review.png (baseline)"
+    - "docs/social-preview-v2.svg / .png / -review.png (candidate)"
 
 authorization:
   readme_modified: true

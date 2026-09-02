@@ -29,9 +29,22 @@
     </header>
 
     <section class="canvas-frame" aria-label="战斗轨迹画布">
-      <canvas id="gameCanvas" width="600" height="650" role="img" aria-label="敌方剑锋沿贝塞尔轨迹接近玩家判定区的战斗可视化"></canvas>
+      <canvas id="gameCanvas" width="600" height="650" role="img" aria-label="敌方剑锋沿贝塞尔轨迹接近玩家受击区的战斗可视化"></canvas>
       <p id="timing-feedback" class="timing-feedback" aria-live="polite" aria-atomic="true"></p>
       <p id="window-indicator" class="window-indicator" aria-live="polite">判定窗 150ms</p>
+    </section>
+
+    <section id="runtime-editor-bar" class="runtime-editor-bar hidden" aria-label="画布编辑工具">
+      <div class="runtime-editor-bar__copy">
+        <p id="runtime-editor-selection" class="runtime-editor-selection" role="status" aria-live="polite">画布编辑已开启</p>
+        <p id="runtime-editor-help" class="runtime-editor-help">直接在轨迹上操作：拖 P0–P3 改路径，拖 <strong>R</strong> 调玩家受击区，拖橙色 <strong>W</strong> 调内置弹反判定窗。</p>
+      </div>
+      <div class="runtime-editor-actions">
+        <button id="btn-runtime-editor-split" class="runtime-editor-action runtime-editor-action--split" type="button">拆分当前段</button>
+        <button id="btn-runtime-editor-delete" class="runtime-editor-action runtime-editor-action--delete" type="button">删除当前段</button>
+        <button id="btn-runtime-editor-advanced" class="runtime-editor-action runtime-editor-action--advanced" type="button" aria-controls="editor-panel" aria-expanded="false">更多参数</button>
+        <button id="btn-runtime-editor-exit" class="runtime-editor-action runtime-editor-action--exit" type="button">退出编辑</button>
+      </div>
     </section>
 
     <section id="player-hud" class="hud-panel hud-panel--player" aria-label="玩家状态">
@@ -58,7 +71,7 @@
             <option value="ashina-flurry">苇名连斩·交错突袭</option>
           </select>
         </div>
-        <div class="control-group">
+        <div class="control-group control-group--timing">
           <label for="window-select">弹反难度</label>
           <select id="window-select">
             <option value="pattern">招式内置判定窗</option>
@@ -66,6 +79,7 @@
             <option value="150" selected>修罗 · 150ms</option>
             <option value="90">苦难 · 90ms</option>
           </select>
+          <p class="timing-editor-hint">进入画布编辑后，拖动橙色 <strong>W</strong> 手柄即可直接调整内置窗口。</p>
         </div>
       </div>
 
@@ -88,9 +102,134 @@
         <button id="btn-attack" class="action-btn" type="button" aria-keyshortcuts="Enter Space">敌方发起攻击 <kbd>Space</kbd></button>
         <button id="btn-parry" class="parry-btn" type="button" aria-keyshortcuts="Space">弹反 <kbd>Space</kbd></button>
         <button id="btn-reset" class="reset-btn" type="button">重置战斗</button>
+        <button id="btn-editor" class="editor-entry-btn" type="button" aria-pressed="false">进入画布编辑</button>
       </div>
 
       <p class="help-text">Space：待机时发起攻击、攻击中弹反；Enter：发起攻击；也可直接点击画布弹反。</p>
+    </section>
+
+    <section id="editor-panel" class="editor-panel hidden" aria-labelledby="editor-title">
+      <header class="editor-panel__header">
+        <div>
+          <p class="eyebrow">LOCAL PATTERN EDITOR</p>
+          <h2 id="editor-title">高级参数（可选）</h2>
+        </div>
+        <button id="btn-editor-close" class="editor-close-btn" type="button" aria-label="退出画布编辑模式">退出编辑</button>
+      </header>
+
+      <p class="editor-local-note"><strong>仅本地临时修改。</strong>不会上传或写回源码；刷新页面后会恢复本页初始配置。</p>
+      <p id="editor-canvas-help" class="editor-canvas-help">常用编辑直接在画布完成：点击曲线选段，拖 P0–P3 修改路径，拖 R 调整受击区，拖 W 调整内置弹反窗。下面仅保留命名、精确数值、缓动与段落管理等高级参数。</p>
+
+      <div class="editor-pattern-field">
+        <label for="editor-pattern-name">招式名称</label>
+        <input id="editor-pattern-name" type="text" maxlength="48" autocomplete="off">
+      </div>
+
+      <section class="editor-section" aria-labelledby="editor-segments-title">
+        <div class="editor-section__heading">
+          <div>
+            <h3 id="editor-segments-title">多段曲线</h3>
+            <p id="editor-selection-description" role="status" aria-live="polite"></p>
+          </div>
+          <button id="btn-editor-add-segment" class="editor-add-btn" type="button">拆分并新增当前段</button>
+        </div>
+        <div id="editor-segment-list" class="editor-segment-list" aria-label="当前招式的段落列表"></div>
+      </section>
+
+      <fieldset class="editor-fieldset">
+        <legend>选中段落</legend>
+        <div class="editor-field-grid">
+          <label for="editor-segment-name">段落名称
+            <input id="editor-segment-name" type="text" maxlength="48" autocomplete="off">
+          </label>
+          <label for="editor-duration">时长（毫秒）
+            <input id="editor-duration" type="number" min="50" max="10000" step="1" inputmode="numeric">
+          </label>
+          <label for="editor-easing">缓动曲线
+            <select id="editor-easing">
+              <option value="linear">linear · 匀速</option>
+              <option value="easeInQuad">easeInQuad · 二次加速</option>
+              <option value="easeInCubic">easeInCubic · 三次蓄力</option>
+              <option value="easeOutCubic">easeOutCubic · 三次减速</option>
+              <option value="easeInExpo">easeInExpo · 指数蓄力</option>
+              <option value="easeOutExpo">easeOutExpo · 指数爆发</option>
+              <option value="easeInOutSine">easeInOutSine · 正弦过渡</option>
+              <option value="slowFastPause">slowFastPause · 慢快变奏</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="editor-points" aria-label="贝塞尔控制点坐标">
+          <div class="editor-point-group">
+            <h3>P0 · 起点</h3>
+            <label>X <input data-editor-point="p0" data-editor-axis="x" type="number" min="0" max="600" step="1" inputmode="numeric"></label>
+            <label>Y <input data-editor-point="p0" data-editor-axis="y" type="number" min="0" max="650" step="1" inputmode="numeric"></label>
+          </div>
+          <div class="editor-point-group">
+            <h3>P1 · 控制点</h3>
+            <label>X <input data-editor-point="p1" data-editor-axis="x" type="number" min="0" max="600" step="1" inputmode="numeric"></label>
+            <label>Y <input data-editor-point="p1" data-editor-axis="y" type="number" min="0" max="650" step="1" inputmode="numeric"></label>
+          </div>
+          <div class="editor-point-group">
+            <h3>P2 · 控制点</h3>
+            <label>X <input data-editor-point="p2" data-editor-axis="x" type="number" min="0" max="600" step="1" inputmode="numeric"></label>
+            <label>Y <input data-editor-point="p2" data-editor-axis="y" type="number" min="0" max="650" step="1" inputmode="numeric"></label>
+          </div>
+          <div class="editor-point-group">
+            <h3>P3 · 终点</h3>
+            <label>X <input data-editor-point="p3" data-editor-axis="x" type="number" min="0" max="600" step="1" inputmode="numeric"></label>
+            <label>Y <input data-editor-point="p3" data-editor-axis="y" type="number" min="0" max="650" step="1" inputmode="numeric"></label>
+          </div>
+        </div>
+        <p class="editor-continuity-note">修改 P0 或 P3 时，会自动同步相邻段的共享连接点，保证多段曲线不断开。</p>
+      </fieldset>
+
+      <section class="editor-hurtbox-section" aria-labelledby="editor-hurtbox-title">
+        <div class="editor-hurtbox-section__heading">
+          <div>
+            <h3 id="editor-hurtbox-title">玩家受击区</h3>
+            <p>招式在终点结算时，若攻击终点落在此范围内，玩家受击；它不影响弹反判定窗。</p>
+          </div>
+          <output id="editor-hurtbox-value" class="editor-hurtbox-value" for="editor-hurtbox-radius editor-hurtbox-radius-number" aria-live="polite">半径 25px</output>
+        </div>
+        <div class="editor-hurtbox-controls">
+          <label for="editor-hurtbox-radius">拖动调整半径
+            <input id="editor-hurtbox-radius" class="editor-hurtbox-range" type="range" min="12" max="160" step="1" value="25" aria-describedby="editor-hurtbox-help">
+          </label>
+          <label for="editor-hurtbox-radius-number">精确值（px）
+            <input id="editor-hurtbox-radius-number" type="number" min="12" max="160" step="1" inputmode="numeric" value="25" aria-describedby="editor-hurtbox-help">
+          </label>
+        </div>
+        <p id="editor-hurtbox-help" class="editor-hurtbox-help">画布中的受击圆会即时缩放；也可拖动圆环边缘或带 <strong>R</strong> 的菱形手柄。它只决定攻击终点是否命中，不改变弹反窗口或橙金时间轨迹。</p>
+      </section>
+
+      <section id="editor-parry-window-section" class="editor-window-section" aria-labelledby="editor-parry-window-title" tabindex="-1">
+        <div class="editor-window-section__heading">
+          <div>
+            <h3 id="editor-parry-window-title">招式内置判定窗</h3>
+            <p>从攻击终点时刻向前倒数的完美弹反时长。画布中的橙金高亮会即时显示对应的实际轨迹范围，与玩家受击区无关。</p>
+          </div>
+          <output id="editor-parry-window-value" class="editor-window-value" for="editor-parry-window editor-parry-window-number" aria-live="polite">窗口 150ms</output>
+        </div>
+        <div class="editor-window-controls">
+          <label for="editor-parry-window">拖动调整时长
+            <input id="editor-parry-window" class="editor-window-range" type="range" min="30" max="1000" step="1" value="150" aria-describedby="editor-parry-window-help">
+          </label>
+          <label for="editor-parry-window-number">精确值（ms）
+            <input id="editor-parry-window-number" type="number" min="30" max="1000" step="1" inputmode="numeric" value="150" aria-describedby="editor-parry-window-help">
+          </label>
+        </div>
+        <div class="editor-window-runtime">
+          <p id="editor-parry-window-status" role="status" aria-live="polite"></p>
+          <button id="btn-editor-use-pattern-window" class="editor-window-apply-btn" type="button">使用此招式判定窗</button>
+        </div>
+        <p id="editor-parry-window-help" class="editor-window-help">上方“弹反难度”若选固定难度，会覆盖招式内置值；点击按钮即可立即让本招式的窗口参与当前练习。无论受击区半径如何调整，弹反窗口都保持不变。</p>
+      </section>
+
+      <div class="editor-actions">
+        <button id="btn-editor-delete-segment" class="editor-delete-btn" type="button">删除选中段</button>
+        <button id="btn-editor-reset-pattern" class="editor-reset-btn" type="button">恢复当前招式初始配置</button>
+      </div>
     </section>
 
     <section id="deathblow-overlay" class="hidden" aria-live="assertive" aria-modal="true" role="dialog" aria-labelledby="deathblow-title">

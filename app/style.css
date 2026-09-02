@@ -175,6 +175,101 @@ output {
   touch-action: manipulation;
 }
 
+#gameCanvas.is-editing {
+  cursor: grab;
+  touch-action: none;
+}
+
+#gameCanvas.is-editing.is-dragging {
+  cursor: grabbing;
+}
+
+.runtime-editor-bar {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid rgba(201, 160, 99, 0.56);
+  background: #16120f;
+}
+
+.runtime-editor-bar__copy {
+  display: grid;
+  gap: 3px;
+}
+
+.runtime-editor-selection,
+.runtime-editor-help {
+  margin: 0;
+}
+
+.runtime-editor-selection {
+  color: #f0d49f;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.runtime-editor-help {
+  color: #9f9381;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.runtime-editor-help strong {
+  color: #ffba74;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.runtime-editor-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.runtime-editor-action {
+  min-height: 29px;
+  padding: 5px 6px;
+  font-size: 10px;
+  letter-spacing: 0.2px;
+}
+
+.runtime-editor-action--split,
+.runtime-editor-action--advanced {
+  color: #f0d49f;
+  border-color: #806440;
+  background: #342719;
+}
+
+.runtime-editor-action--split:hover:not(:disabled),
+.runtime-editor-action--advanced:hover:not(:disabled) {
+  border-color: #c9a063;
+  background: #47351f;
+}
+
+.runtime-editor-action--delete {
+  color: #ffb3a1;
+  border-color: #813d2d;
+  background: #311410;
+}
+
+.runtime-editor-action--delete:hover:not(:disabled) {
+  border-color: #d45d45;
+  background: #461a14;
+}
+
+.runtime-editor-action--exit {
+  color: #c7bcae;
+  border-color: #554433;
+  background: #241e18;
+}
+
+.runtime-editor-action--exit:hover:not(:disabled) {
+  border-color: #876c4c;
+  background: #30271f;
+}
+
 .timing-feedback {
   position: absolute;
   right: 24px;
@@ -257,6 +352,10 @@ output {
   gap: 5px;
 }
 
+.control-group--timing {
+  align-content: start;
+}
+
 .control-group label {
   color: #b0a494;
   font-size: 11px;
@@ -271,6 +370,18 @@ select {
   color: #d4af37;
   background: #141210;
   cursor: pointer;
+}
+
+.timing-editor-hint {
+  margin: 0;
+  color: #857967;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.timing-editor-hint strong {
+  color: #ffb36a;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
 .toggle-group {
@@ -351,12 +462,33 @@ button {
   background: #30271f;
 }
 
+.editor-entry-btn {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  color: #d7c4a5;
+  border-color: #6f5738;
+  background: #1a1713;
+  font-size: 11px;
+}
+
+.editor-entry-btn:hover:not(:disabled),
+.editor-entry-btn[aria-pressed="true"] {
+  color: #f4d79f;
+  border-color: #c9a063;
+  background: #30261b;
+}
+
 button:active:not(:disabled) {
   transform: scale(0.98);
 }
 
 button:disabled,
 select:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+input:disabled {
   opacity: 0.52;
   cursor: not-allowed;
 }
@@ -376,6 +508,365 @@ kbd {
   font-size: 10px;
   line-height: 1.55;
   text-align: center;
+}
+
+.editor-panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-top: 1px solid #6f5738;
+  background: #12100e;
+}
+
+.editor-panel__header,
+.editor-section__heading,
+.editor-hurtbox-section__heading,
+.editor-window-section__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.editor-panel .eyebrow {
+  margin-bottom: 2px;
+  text-align: left;
+}
+
+.editor-panel h2,
+.editor-panel h3 {
+  margin: 0;
+  color: var(--gold-bright);
+}
+
+.editor-panel h2 {
+  font-size: 17px;
+  letter-spacing: 1px;
+}
+
+.editor-panel h3 {
+  font-size: 12px;
+}
+
+.editor-close-btn,
+.editor-add-btn,
+.editor-reset-btn,
+.editor-delete-btn,
+.editor-window-apply-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.editor-close-btn,
+.editor-reset-btn {
+  color: #d7c4a5;
+  border-color: #554433;
+  background: #241e18;
+}
+
+.editor-close-btn:hover,
+.editor-reset-btn:hover {
+  border-color: #8c6f47;
+  background: #30271f;
+}
+
+.editor-local-note,
+.editor-canvas-help,
+.editor-continuity-note,
+.editor-hurtbox-help,
+.editor-window-help {
+  margin: 0;
+  color: #b0a494;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.editor-local-note {
+  padding: 8px 10px;
+  border-left: 3px solid var(--ember);
+  background: rgba(78, 31, 20, 0.34);
+  color: #d9b49b;
+}
+
+.editor-local-note strong {
+  color: #ffd5bd;
+}
+
+.editor-pattern-field,
+.editor-field-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.editor-pattern-field label,
+.editor-field-grid label,
+.editor-point-group label,
+.editor-hurtbox-controls label,
+.editor-window-controls label {
+  display: grid;
+  gap: 5px;
+  color: #b0a494;
+  font-size: 11px;
+}
+
+.editor-panel input:not([type="checkbox"]),
+.editor-panel select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid #554433;
+  border-radius: 2px;
+  color: #e6c894;
+  background: #0f0d0b;
+}
+
+.editor-panel input:not([type="checkbox"]):focus-visible,
+.editor-panel select:focus-visible {
+  border-color: #f0c36e;
+}
+
+.editor-section {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(85, 68, 51, 0.7);
+}
+
+.editor-section__heading p {
+  max-width: 330px;
+  margin: 4px 0 0;
+  color: #857967;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.editor-add-btn {
+  flex: 0 0 auto;
+  color: #f0d49f;
+  border-color: #8c6f47;
+  background: #382b1d;
+}
+
+.editor-add-btn:hover {
+  border-color: #c9a063;
+  background: #4b3925;
+}
+
+.editor-segment-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.editor-segment-button {
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  padding: 8px 10px;
+  color: #c7bcae;
+  border-color: #4a3e2f;
+  background: #191512;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.editor-segment-button:hover {
+  border-color: #8c6f47;
+  background: #241e18;
+}
+
+.editor-segment-button.is-selected,
+.editor-segment-button[aria-pressed="true"] {
+  color: #fff0cf;
+  border-color: #c9a063;
+  background: #3b2d1d;
+  box-shadow: inset 3px 0 0 var(--ember);
+}
+
+.editor-segment-button__title {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-segment-button__details {
+  color: #9a8d7b;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+}
+
+.editor-fieldset {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #554433;
+  background: rgba(20, 17, 14, 0.64);
+}
+
+.editor-fieldset legend {
+  padding: 0 6px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.editor-field-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.editor-points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.editor-point-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid rgba(85, 68, 51, 0.7);
+  background: #16120f;
+}
+
+.editor-point-group h3 {
+  grid-column: 1 / -1;
+  color: #c9a063;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
+.editor-continuity-note {
+  color: #c3ae8a;
+}
+
+.editor-hurtbox-section,
+.editor-window-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(85, 68, 51, 0.7);
+}
+
+.editor-hurtbox-section__heading p,
+.editor-window-section__heading p {
+  max-width: 360px;
+  margin: 4px 0 0;
+  color: #857967;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.editor-hurtbox-value,
+.editor-window-value {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  color: #fff0cf;
+  border: 1px solid #8c6f47;
+  background: #2b2117;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.editor-hurtbox-controls,
+.editor-window-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 116px;
+  gap: 10px;
+  align-items: end;
+}
+
+.editor-panel input.editor-hurtbox-range,
+.editor-panel input.editor-window-range {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  accent-color: #f0c36e;
+  background: transparent;
+}
+
+.editor-hurtbox-help,
+.editor-window-help {
+  color: #c3ae8a;
+}
+
+.editor-hurtbox-help strong {
+  color: #fff0cf;
+}
+
+.editor-hurtbox-value {
+  color: #ffd0c5;
+  border-color: #9b4f3d;
+  background: #321815;
+}
+
+.editor-panel input.editor-hurtbox-range {
+  accent-color: #ff6a4a;
+}
+
+.editor-hurtbox-help {
+  color: #d49f91;
+}
+
+.editor-hurtbox-help strong {
+  color: #ffd0c5;
+}
+
+.editor-window-runtime {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(140, 111, 71, 0.72);
+  background: rgba(62, 39, 20, 0.42);
+}
+
+.editor-window-runtime p {
+  margin: 0;
+  color: #dfc496;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.editor-window-apply-btn {
+  flex: 0 0 auto;
+  color: #fff0cf;
+  border-color: #b97832;
+  background: #4a2914;
+}
+
+.editor-window-apply-btn:hover:not(:disabled) {
+  border-color: #ff9f1a;
+  background: #653816;
+}
+
+.editor-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.editor-delete-btn {
+  color: #ffb3a1;
+  border-color: #813d2d;
+  background: #311410;
+}
+
+.editor-delete-btn:hover:not(:disabled) {
+  border-color: #d45d45;
+  background: #461a14;
 }
 
 #deathblow-overlay {
@@ -468,8 +959,47 @@ input:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .runtime-editor-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .reset-btn {
     grid-column: auto;
+  }
+
+  .editor-entry-btn {
+    grid-column: auto;
+  }
+
+  .editor-panel__header,
+  .editor-section__heading,
+  .editor-hurtbox-section__heading,
+  .editor-window-section__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .editor-close-btn,
+  .editor-add-btn {
+    width: 100%;
+  }
+
+  .editor-segment-list,
+  .editor-field-grid,
+  .editor-points,
+  .editor-actions,
+  .editor-hurtbox-controls,
+  .editor-window-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-window-runtime {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .editor-window-apply-btn {
+    width: 100%;
   }
 
   .timing-feedback {

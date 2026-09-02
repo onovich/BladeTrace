@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title description">
   <title id="title">BladeTrace social preview</title>
-  <desc id="description">A warm dark technical composition for BladeTrace, showing a multi-segment Bezier attack path from an enemy blade origin to a fixed player hurtbox target.</desc>
+  <desc id="description">A warm dark technical composition for BladeTrace, showing a multi-segment Bezier attack path from an enemy blade origin to a player parry target.</desc>
   <defs>
     <radialGradient id="background" cx="42%" cy="38%" r="78%">
       <stop offset="0" stop-color="#252019"/>
@@ -83,7 +83,7 @@
     <g>
       <circle cx="960" cy="500" r="31" fill="none" stroke="#c9a063" stroke-width="3" filter="url(#goldGlow)"/>
       <circle cx="960" cy="500" r="8" fill="#ff4500" filter="url(#emberGlow)"/>
-      <text x="912" y="545" fill="#e0d8c3" font-size="15" font-weight="600">玩家受击区</text>
+      <text x="912" y="545" fill="#e0d8c3" font-size="15" font-weight="600">玩家判定区</text>
     </g>
 
     <g font-family="Consolas, Microsoft YaHei, monospace">
@@ -104,3 +104,4 @@
 
   <text x="72" y="574" fill="#806f5a" font-family="Consolas, monospace" font-size="14" letter-spacing="1.4">STATIC BROWSER PROTOTYPE · DATA-DRIVEN ATTACK RHYTHM</text>
 </svg>
+

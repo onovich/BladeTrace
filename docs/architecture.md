@@ -8,7 +8,8 @@ BladeTrace 的核心不是一般意义上的“画一条曲线”，而是让设
 
 - 多段连续的贝塞尔轨迹；
 - 每段的时间、缓动和语义标签；
-- 仅在最后有效时段开放的弹反窗口；
+- 仅按时间轴、在最后有效时段开放的弹反窗口；
+- 固定在玩家位置、只在攻击终点结算的空间受击区；
 - 命中、弹反、架势崩溃、忍殺等可审计的战斗状态变化；
 - 对应的 Canvas、HUD、音效和粒子反馈。
 
@@ -16,7 +17,7 @@ BladeTrace 的核心不是一般意义上的“画一条曲线”，而是让设
 
 ## 当前实现的限制
 
-目前的 `GameEngine` 同时保存战斗状态、采样轨迹、监听 DOM、渲染 Canvas、调用音效并管理粒子。它适合快速验收，但这些职责共享一个实现后，招式编辑、回放、自动测试和特殊攻击会相互牵连。
+目前的 `GameEngine` 同时保存战斗状态、采样轨迹、监听 DOM、渲染 Canvas、调用音效并管理粒子。当前页面内的编辑器也直接修改它持有的内存招式副本：默认通过运行时画布的 P0–P3、R（受击区）与 W（弹反窗）手柄调整，复杂字段才按需展开；它会维持相邻段连接点连续，并可调整固定位置的玩家受击区半径和招式内置判定窗（含时间轴轨迹预览）。攻击仅在终点用受击区结算，弹反窗则只按时间轴判断；两者不互相改变。编辑器尚不提供配置校验、持久化或导入导出。它适合快速验收，但这些职责共享一个实现后，招式编辑、回放、自动测试和特殊攻击会相互牵连。
 
 下一次重构应保留行为，不以“改用框架”为目标；继续保持纯静态部署和无第三方运行时依赖，除非后续需求明确改变这一点。
 
@@ -92,7 +93,7 @@ session.tick(atMs: number): CombatTransition
 session.snapshot(): CombatSnapshot
 ```
 
-`CombatTransition` 返回新的快照及 `AttackStarted`、`Parried`、`PlayerHit`、`DeathblowReady`、`DeathblowExecuted` 等事件。输入 Adapter 和渲染 Adapter 只消费结果，不自行判断“是否在 150ms 窗口内”。这让规则可以被固定时间戳的测试直接覆盖。
+`CombatTransition` 返回新的快照及 `AttackStarted`、`Parried`、`PlayerHit`、`AttackMissed`、`DeathblowReady`、`DeathblowExecuted` 等事件。`CombatSession` 在终点时以固定的玩家位置和受击区半径结算 `PlayerHit` 或 `AttackMissed`；弹反窗只比较时间戳。输入 Adapter 和渲染 Adapter 只消费结果，不自行判断“是否在 150ms 窗口内”。这让规则可以被固定时间戳的测试直接覆盖。
 
 ### 4. 呈现与外部设备 Adapter
 
@@ -133,6 +134,7 @@ interface AttackPattern {
   name: string;
   kind: AttackKind;
   parryWindowMs: number;
+  playerHurtboxRadius: number;
   playerDamage: number;
   postureGain: number;
   enemyDamageOnDeflect: number;
@@ -162,7 +164,7 @@ PatternCatalog ──► PatternCompiler ──► TrajectoryEngine ──► Co
 
 1. `PatternCompiler`：拒绝空段、负时长、未知缓动和不连续的 `p3 → p0`；验证每个预设可编译。
 2. `TrajectoryEngine`：在每段起点、终点和边界时间采样，验证坐标、段索引和剩余时间。
-3. `CombatSession`：固定时间戳测试早按、窗口内弹反、逾时受击、4 次架势满、忍殺、重置与自动循环。
+3. `CombatSession`：固定时间戳测试早按、窗口内弹反、逾时的终点受击与攻击落空、路径中途穿过受击区但终点不命中、4 次架势满、忍殺、重置与自动循环；另验证改变受击区不会改变弹反窗口。
 4. 浏览器冒烟：使用真实浏览器检查按钮、Space、画布点击、HUD 文本、键盘焦点和 320/768/1024/1440 宽度。
 
 这些测试都穿过模块的 Interface，而不是窥探内部变量。
