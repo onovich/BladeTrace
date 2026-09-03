@@ -17,6 +17,7 @@
         <output id="boss-phase-label" aria-live="polite">PHASE I · 戒律试探</output>
       </div>
       <p id="boss-personality" class="boss-personality">守序、克制的重剑监军，会随架势受压持续缩短你的犹豫空间。</p>
+      <p id="boss-origin" class="boss-origin">原创节奏研究 · BladeTrace</p>
       <p id="boss-phase-hint" class="boss-phase-hint" role="status" aria-live="polite">用长前摇和高位落点测试玩家会不会过早出手。</p>
       <div class="bar-label-row">
         <span>架势值 <span lang="en">Posture</span></span>
@@ -30,6 +31,7 @@
     <section class="canvas-frame" aria-label="战斗轨迹画布">
       <canvas id="gameCanvas" width="600" height="650" role="img" aria-label="敌方剑锋沿贝塞尔轨迹接近玩家受击区的战斗可视化"></canvas>
       <p id="timing-feedback" class="timing-feedback" aria-live="polite" aria-atomic="true"></p>
+      <p id="telegraph-indicator" class="telegraph-indicator" role="status" aria-live="polite">预读提示 · 先认清终结段的承诺，再进入弹反窗口</p>
       <p id="window-indicator" class="window-indicator" aria-live="polite">判定窗 220ms</p>
     </section>
 
@@ -45,6 +47,7 @@
             <p id="runtime-phase-selection" role="status" aria-live="polite">点击阶段卡立即预览其招式池与画布强调色。</p>
           </div>
           <div class="runtime-phase-editor__actions">
+            <button id="btn-runtime-phase-practice" class="runtime-phase-action runtime-phase-action--practice" type="button">练习此阶段</button>
             <button id="btn-runtime-phase-add" class="runtime-phase-action" type="button">新增阶段</button>
             <button id="btn-runtime-phase-delete" class="runtime-phase-action runtime-phase-action--delete" type="button">删除阶段</button>
           </div>

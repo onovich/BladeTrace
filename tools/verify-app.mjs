@@ -36,6 +36,7 @@ const requiredIds = [
   "boss-name",
   "boss-phase-label",
   "boss-personality",
+  "boss-origin",
   "boss-phase-hint",
   "boss-select",
   "pattern-select",
@@ -53,6 +54,7 @@ const requiredIds = [
   "runtime-phase-list",
   "btn-runtime-phase-add",
   "btn-runtime-phase-delete",
+  "btn-runtime-phase-practice",
   "btn-runtime-editor-split",
   "btn-runtime-editor-delete",
   "btn-runtime-editor-advanced",
@@ -89,7 +91,8 @@ const requiredIds = [
   "player-hp-bar",
   "pattern-description",
   "player-status",
-  "timing-feedback"
+  "timing-feedback",
+  "telegraph-indicator"
 ];
 
 requiredIds.forEach((id) => {
@@ -100,7 +103,7 @@ requiredIds.forEach((id) => {
 [
   "spiral-approach",
   "deceptive-pause",
-  "ashina-flurry",
+  "cross-flurry",
   "cinder-verdict",
   "raven-whorl",
   "bell-crush"
@@ -150,6 +153,12 @@ assert(script.includes("phase.patternIds"), "Attack-pattern select must be const
   "updatePatternDescription",
   "handleBossChange",
   "applyCombatPhaseFromPosture",
+  "calculatePhasePostureGain",
+  "startSelectedPhasePractice",
+  "beginPhaseTransition",
+  "drawBossSignature",
+  "drawCommitCue",
+  "drawPhaseTransitionBanner",
   "renderRuntimePhaseList",
   "selectBossPhase",
   "handlePhasePatternToggle"
@@ -164,9 +173,14 @@ assert(!script.includes("localStorage") && !script.includes("sessionStorage"), "
 assert(html.includes('src="pattern-validation.js"') && html.includes('src="attack-patterns.js"'), "The standalone entry point must load pattern rules before the game engine.");
 assert(patternReport.isValid, "Every shipped attack pattern must pass the public configuration validator.");
 assert(bossReport.isValid, "Every shipped Boss must pass the public phase configuration validator.");
-assert(Object.keys(attackPatterns.BOSS_LIBRARY).length >= 3, "The shipped practice catalog must include several distinct Bosses.");
+assert(Object.keys(attackPatterns.ATTACK_PATTERNS).length >= 29, "The shipped practice catalog must include the 20 new signature attacks.");
+assert(Object.keys(attackPatterns.BOSS_LIBRARY).length >= 13, "The shipped practice catalog must include 10 homage Bosses plus the original trio.");
+const homageBosses = Object.values(attackPatterns.BOSS_LIBRARY).filter((boss) => boss.inspiration.kind === "mechanical-homage");
+assert(homageBosses.length >= 10, "At least 10 Bosses must be marked as mechanical homages.");
+assert(new Set(homageBosses.map((boss) => boss.inspiration.sourceGame)).size >= 5, "Mechanical homage Bosses must cover at least 5 source games.");
 Object.values(attackPatterns.BOSS_LIBRARY).forEach((boss) => {
-  assert(boss.phases.length >= 2, "Every shipped Boss must have multiple phases.");
+  assert(boss.phases.length >= 3, "Every shipped Boss must have three phases.");
+  assert(boss.phases.every((phase) => Number.isFinite(phase.postureGainScale)), "Every Boss phase must expose its posture pacing scale.");
 });
 assert(!script.includes("enemyDamage") && !script.includes("enemyHp"), "Perfect parries must build enemy posture without dealing hidden enemy HP damage.");
 assert(!patternDataScript.includes("spiral-thrust"), "S-curve approach must not be modeled as a thrust before thrust mechanics exist.");

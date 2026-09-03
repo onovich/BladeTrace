@@ -95,6 +95,15 @@ class AudioEngine {
     this.playOscillator(context, "square", 120, 30, 0.9, 0.6, context.currentTime);
   }
 
+  playPhaseShift() {
+    const context = this.getContext();
+    if (!context) return;
+
+    const now = context.currentTime;
+    this.playOscillator(context, "sine", 430, 980, 0.25, 0.34, now);
+    this.playOscillator(context, "triangle", 690, 1320, 0.18, 0.28, now + 0.08);
+  }
+
   playOscillator(context, type, startFrequency, endFrequency, gainValue, duration, now) {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
@@ -207,6 +216,8 @@ function clonePattern(pattern) {
     damage: pattern.damage,
     postureGain: pattern.postureGain,
     playerHurtboxRadius: normalizePlayerHurtboxRadius(pattern.playerHurtboxRadius),
+    commitCueLabel: pattern.commitCueLabel,
+    commitCueLeadMs: pattern.commitCueLeadMs,
     segments: pattern.segments.map(cloneSegment)
   };
 }
@@ -225,6 +236,7 @@ function cloneBossPhase(phase) {
     name: phase.name,
     description: phase.description,
     postureThreshold: phase.postureThreshold,
+    postureGainScale: phase.postureGainScale,
     accentColor: phase.accentColor,
     patternIds: phase.patternIds.slice()
   };
@@ -234,6 +246,15 @@ function cloneBoss(boss) {
   return {
     name: boss.name,
     description: boss.description,
+    inspiration: {
+      kind: boss.inspiration.kind,
+      sourceGame: boss.inspiration.sourceGame,
+      lesson: boss.inspiration.lesson
+    },
+    visualMotif: {
+      type: boss.visualMotif.type,
+      label: boss.visualMotif.label
+    },
     phases: boss.phases.map(cloneBossPhase)
   };
 }
@@ -329,6 +350,9 @@ class GameEngine {
     this.lastFrameTime = 0;
     this.autoStartTimer = null;
     this.feedbackTimer = null;
+    this.phaseTransitionTimer = null;
+    this.isPhaseTransitioning = false;
+    this.phasePracticeIndex = null;
     this.isEditorMode = false;
     this.selectedSegmentIndex = 0;
     this.draggedControl = null;
@@ -350,15 +374,18 @@ class GameEngine {
     this.bossName = document.getElementById("boss-name");
     this.bossPhaseLabel = document.getElementById("boss-phase-label");
     this.bossPersonality = document.getElementById("boss-personality");
+    this.bossOrigin = document.getElementById("boss-origin");
     this.bossPhaseHint = document.getElementById("boss-phase-hint");
     this.playerHpBar = document.getElementById("player-hp-bar");
     this.playerHpText = document.getElementById("player-hp-text");
     this.playerStatus = document.getElementById("player-status");
     this.timingFeedback = document.getElementById("timing-feedback");
     this.windowIndicator = document.getElementById("window-indicator");
+    this.telegraphIndicator = document.getElementById("telegraph-indicator");
     this.deathblowOverlay = document.getElementById("deathblow-overlay");
     this.deathblowButton = document.getElementById("btn-deathblow");
     this.bossSelect = document.getElementById("boss-select");
+    this.bossSelectDescription = document.getElementById("boss-select-description");
     this.patternSelect = document.getElementById("pattern-select");
     this.patternDescription = document.getElementById("pattern-description");
     this.windowSelect = document.getElementById("window-select");
@@ -375,6 +402,7 @@ class GameEngine {
     this.runtimePhaseList = document.getElementById("runtime-phase-list");
     this.runtimePhaseAddButton = document.getElementById("btn-runtime-phase-add");
     this.runtimePhaseDeleteButton = document.getElementById("btn-runtime-phase-delete");
+    this.runtimePhasePracticeButton = document.getElementById("btn-runtime-phase-practice");
     this.runtimeEditorSplitButton = document.getElementById("btn-runtime-editor-split");
     this.runtimeEditorDeleteButton = document.getElementById("btn-runtime-editor-delete");
     this.runtimeEditorAdvancedButton = document.getElementById("btn-runtime-editor-advanced");
@@ -425,6 +453,7 @@ class GameEngine {
     this.runtimePhaseList.addEventListener("click", this.handlePhaseSelection.bind(this));
     this.runtimePhaseAddButton.addEventListener("click", this.addBossPhase.bind(this));
     this.runtimePhaseDeleteButton.addEventListener("click", this.deleteSelectedBossPhase.bind(this));
+    this.runtimePhasePracticeButton.addEventListener("click", this.startSelectedPhasePractice.bind(this));
     this.runtimeEditorSplitButton.addEventListener("click", this.addSegmentAfterSelection.bind(this));
     this.runtimeEditorDeleteButton.addEventListener("click", this.deleteSelectedSegment.bind(this));
     this.runtimeEditorAdvancedButton.addEventListener("click", this.toggleAdvancedEditorPanel.bind(this));
@@ -463,14 +492,32 @@ class GameEngine {
 
   populateBossSelect() {
     this.bossSelect.replaceChildren();
+    const groups = new Map();
     Object.keys(this.bossLibrary).forEach(function (bossKey) {
       const boss = this.bossLibrary[bossKey];
+      const isHomage = boss.inspiration && boss.inspiration.kind === "mechanical-homage";
+      const groupLabel = isHomage ? "机制致敬 · " + boss.inspiration.sourceGame : "BladeTrace 原创";
+      let group = groups.get(groupLabel);
+      if (!group) {
+        group = document.createElement("optgroup");
+        group.label = groupLabel;
+        groups.set(groupLabel, group);
+        this.bossSelect.append(group);
+      }
       const option = document.createElement("option");
       option.value = bossKey;
       option.textContent = boss.name;
-      this.bossSelect.append(option);
+      group.append(option);
     }.bind(this));
     this.bossSelect.value = this.currentBossKey;
+  }
+
+  getBossOriginLabel() {
+    const inspiration = this.currentBoss.inspiration;
+    if (!inspiration) return "原创节奏研究 · BladeTrace";
+    return inspiration.kind === "mechanical-homage"
+      ? "机制致敬 · " + inspiration.sourceGame
+      : "原创节奏研究 · " + inspiration.sourceGame;
   }
 
   getCombatPhaseIndex() {
@@ -489,6 +536,19 @@ class GameEngine {
 
   getActivePhase() {
     return this.isEditorMode ? this.getSelectedBossPhase() : this.getCombatPhase();
+  }
+
+  getPhasePracticePhase() {
+    if (!Number.isInteger(this.phasePracticeIndex)) return null;
+    return this.currentBoss.phases[this.phasePracticeIndex] || null;
+  }
+
+  isPhasePracticeActive() {
+    return this.getPhasePracticePhase() !== null;
+  }
+
+  getCombatPostureGain() {
+    return PATTERN_VALIDATION.calculatePhasePostureGain(this.getCombatPhase(), this.currentPattern);
   }
 
   getPhaseAccentColor() {
@@ -535,6 +595,8 @@ class GameEngine {
 
     this.currentBossKey = event.target.value;
     this.currentBoss = nextBoss;
+    this.phasePracticeIndex = null;
+    this.clearPhaseTransition();
     this.currentPhaseIndex = 0;
     this.selectedPhaseIndex = 0;
     this.pendingPhaseIndex = null;
@@ -629,6 +691,12 @@ class GameEngine {
   exitEditorMode() {
     if (!this.isEditorMode) return;
 
+    this.phasePracticeIndex = null;
+    this.leaveEditorModeUi();
+    this.setStatus("已退出编辑模式 · 修改仍保留到刷新页面", "neutral");
+  }
+
+  leaveEditorModeUi() {
     this.draggedControl = null;
     this.isEditorMode = false;
     this.selectedPhaseIndex = this.currentPhaseIndex;
@@ -645,7 +713,22 @@ class GameEngine {
     this.canvas.removeAttribute("aria-describedby");
     this.updateBossPresentation();
     this.updateControls();
-    this.setStatus("已退出编辑模式 · 修改仍保留到刷新页面", "neutral");
+  }
+
+  startSelectedPhasePractice() {
+    if (!this.isEditorMode) return;
+
+    const practiceIndex = this.selectedPhaseIndex;
+    const phase = this.getSelectedBossPhase();
+    this.phasePracticeIndex = practiceIndex;
+    this.enemyPosture = phase.postureThreshold;
+    this.currentPhaseIndex = practiceIndex;
+    this.selectedPhaseIndex = practiceIndex;
+    this.pendingPhaseIndex = null;
+    this.leaveEditorModeUi();
+    this.updateHud();
+    this.setStatus("阶段练习 · 已从「" + phase.name + "」开始；重置或受击会回到该阶段", "success");
+    this.showFeedback("PHASE PRACTICE · " + phase.name, "success");
   }
 
   renderEditor() {
@@ -744,13 +827,15 @@ class GameEngine {
     const phaseIndex = this.isEditorMode ? this.selectedPhaseIndex : this.currentPhaseIndex;
     this.bossName.textContent = this.currentBoss.name;
     this.bossPersonality.textContent = this.currentBoss.description;
+    this.bossOrigin.textContent = this.getBossOriginLabel();
     this.bossPhaseLabel.textContent = (this.isEditorMode ? "PREVIEW " : "PHASE ") + phase.name;
     this.bossPhaseHint.textContent = phase.description;
     this.gameContainer.style.setProperty("--phase-accent", phase.accentColor);
     this.gameContainer.style.setProperty("--phase-accent-soft", hexToRgba(phase.accentColor, 0.22));
     this.bossSelect.value = this.currentBossKey;
+    this.bossSelectDescription.textContent = this.currentBoss.inspiration.lesson;
     if (this.isEditorMode) {
-      this.runtimePhaseSelection.textContent = "正在预览第 " + (phaseIndex + 1) + " 阶段 · " + phase.name + " · 点击阶段卡可立即切换画布和招式池。";
+      this.runtimePhaseSelection.textContent = "正在预览第 " + (phaseIndex + 1) + " 阶段 · " + phase.name + " · 点击阶段卡立即切换画布和招式池；也可直接练习此阶段。";
     }
   }
 
@@ -770,7 +855,7 @@ class GameEngine {
       title.textContent = phase.name;
       const detail = document.createElement("span");
       detail.className = "runtime-phase-button__detail";
-      detail.textContent = "架势 " + phase.postureThreshold + "% · " + phase.patternIds.length + " 招";
+      detail.textContent = "架势 " + phase.postureThreshold + "% · 推进 ×" + phase.postureGainScale + " · " + phase.patternIds.length + " 招";
       button.append(title, detail);
       this.runtimePhaseList.append(button);
     }.bind(this));
@@ -938,6 +1023,7 @@ class GameEngine {
       name: "新增阶段",
       description: "为这个阶段补充节奏意图与练习提示。",
       postureThreshold: nextThreshold,
+      postureGainScale: Number.isFinite(lastPhase.postureGainScale) ? lastPhase.postureGainScale : 0.5,
       accentColor: accents[phases.length % accents.length],
       patternIds: [this.currentPatternKey]
     });
@@ -1521,7 +1607,7 @@ class GameEngine {
   }
 
   startAttack() {
-    if (this.isEditorMode || this.state !== COMBAT_STATE.IDLE) return;
+    if (this.isEditorMode || this.isPhaseTransitioning || this.state !== COMBAT_STATE.IDLE) return;
     this.ensurePatternForPhase(this.getCombatPhase());
     if (!this.ensureCurrentPatternCanStart()) return;
 
@@ -1567,13 +1653,14 @@ class GameEngine {
 
   triggerParrySuccess() {
     this.state = COMBAT_STATE.PARRY_BOUNCE;
-    this.enemyPosture = clamp(this.enemyPosture + this.currentPattern.postureGain, 0, MAX_VALUE);
+    const postureGain = this.getCombatPostureGain();
+    this.enemyPosture = clamp(this.enemyPosture + postureGain, 0, MAX_VALUE);
     this.pendingPhaseIndex = this.getCombatPhaseIndex();
     this.particles.spawnSparks(this.cursorPos.x, this.cursorPos.y, 42);
     this.screenShake = Math.max(this.screenShake, 13);
     this.audio.playDeflect();
     this.showFeedback("PERFECT PARRY · 完美弹反", "success");
-    this.setStatus("弹反成功 · 敌方架势上升", "success");
+    this.setStatus("弹反成功 · 敌方架势 +" + postureGain + "%", "success");
     this.bounce = {
       startX: this.cursorPos.x,
       startY: this.cursorPos.y,
@@ -1601,7 +1688,8 @@ class GameEngine {
 
     this.clearAutoStart();
     this.playerHp = clamp(this.playerHp - this.currentPattern.damage, 0, MAX_VALUE);
-    this.enemyPosture = 0;
+    const practicePhase = this.getPhasePracticePhase();
+    this.enemyPosture = practicePhase ? practicePhase.postureThreshold : 0;
     this.cursorPos = clonePoint(this.getPatternEndPoint());
     this.cursorTrail = [];
     this.particles.spawnSparks(this.getPatternEndPoint().x, this.getPatternEndPoint().y, 28);
@@ -1615,7 +1703,10 @@ class GameEngine {
     } else {
       this.state = COMBAT_STATE.IDLE;
       this.applyCombatPhaseFromPosture();
-      this.setStatus("受击 · 敌方架势已清空，回到「" + this.getCombatPhase().name + "」", "danger");
+      const resetLabel = practicePhase
+        ? "受击 · 阶段练习回到「" + this.getCombatPhase().name + "」"
+        : "受击 · 敌方架势已清空，回到「" + this.getCombatPhase().name + "」";
+      this.setStatus(resetLabel, "danger");
       this.scheduleAutoStart(1200);
     }
 
@@ -1665,14 +1756,36 @@ class GameEngine {
     this.state = COMBAT_STATE.IDLE;
     if (phaseChanged) {
       const phase = this.getCombatPhase();
-      this.showFeedback("PHASE " + (this.currentPhaseIndex + 1) + " · " + phase.name, "warning");
-      this.setStatus("弹反成功 · Boss 进入「" + phase.name + "」", "success");
+      this.beginPhaseTransition(phase);
     } else {
       this.setStatus("弹反成功 · 可继续观察下一招", "success");
     }
     this.updateControls();
     this.updateWindowIndicator();
-    this.scheduleAutoStart(900);
+    if (!phaseChanged) this.scheduleAutoStart(900);
+  }
+
+  beginPhaseTransition(phase) {
+    this.clearPhaseTransition();
+    this.isPhaseTransitioning = true;
+    this.audio.playPhaseShift();
+    this.showFeedback("PHASE " + (this.currentPhaseIndex + 1) + " · " + phase.name, "warning");
+    this.setStatus("阶段转场 · Boss 进入「" + phase.name + "」，准备阅读新节拍", "success");
+    this.updateControls();
+    this.phaseTransitionTimer = window.setTimeout(function () {
+      this.isPhaseTransitioning = false;
+      this.phaseTransitionTimer = null;
+      this.updateControls();
+      this.scheduleAutoStart(650);
+    }.bind(this), 650);
+  }
+
+  clearPhaseTransition() {
+    if (this.phaseTransitionTimer !== null) {
+      window.clearTimeout(this.phaseTransitionTimer);
+      this.phaseTransitionTimer = null;
+    }
+    this.isPhaseTransitioning = false;
   }
 
   enterDeathblowState() {
@@ -1704,9 +1817,11 @@ class GameEngine {
 
   resetCombat(announce) {
     this.clearAutoStart();
+    this.clearPhaseTransition();
     this.state = COMBAT_STATE.IDLE;
     this.playerHp = MAX_VALUE;
-    this.enemyPosture = 0;
+    const practicePhase = this.getPhasePracticePhase();
+    this.enemyPosture = practicePhase ? practicePhase.postureThreshold : 0;
     this.pendingPhaseIndex = null;
     this.elapsedMs = 0;
     this.totalDurationMs = 0;
@@ -1727,12 +1842,14 @@ class GameEngine {
     this.updateHud();
     this.updateControls();
     this.updateWindowIndicator();
-    this.setStatus("准备就绪 · Space 发起攻击", "neutral");
+    this.setStatus(practicePhase
+      ? "阶段练习 · 已回到「" + this.getCombatPhase().name + "」· Space 发起攻击"
+      : "准备就绪 · Space 发起攻击", "neutral");
     if (announce) this.showFeedback("BATTLE RESET · 战斗已重置", "neutral");
   }
 
   scheduleAutoStart(delayMs) {
-    if (this.isEditorMode || !this.autoLoop.checked || this.state !== COMBAT_STATE.IDLE) return;
+    if (this.isEditorMode || this.isPhaseTransitioning || !this.autoLoop.checked || this.state !== COMBAT_STATE.IDLE) return;
     this.clearAutoStart();
     this.autoStartTimer = window.setTimeout(function () {
       this.autoStartTimer = null;
@@ -1798,7 +1915,7 @@ class GameEngine {
   }
 
   updateControls() {
-    const isIdle = this.state === COMBAT_STATE.IDLE;
+    const isIdle = this.state === COMBAT_STATE.IDLE && !this.isPhaseTransitioning;
     const canUseEditor = isIdle || this.isEditorMode;
     const canParry = !this.isEditorMode && (this.state === COMBAT_STATE.ATTACKING || this.state === COMBAT_STATE.DEATHBLOW);
     this.attackButton.disabled = !isIdle || this.isEditorMode;
@@ -1814,15 +1931,41 @@ class GameEngine {
     this.runtimeEditorExitButton.disabled = !this.isEditorMode;
     this.runtimePhaseAddButton.disabled = !this.isEditorMode || this.currentBoss.phases.length >= PATTERN_VALIDATION.CONSTRAINTS.maxBossPhases;
     this.runtimePhaseDeleteButton.disabled = !this.isEditorMode || this.currentBoss.phases.length <= PATTERN_VALIDATION.CONSTRAINTS.minBossPhases;
+    this.runtimePhasePracticeButton.disabled = !this.isEditorMode;
+  }
+
+  getCommitCueLeadMs() {
+    const patternLead = Number(this.currentPattern.commitCueLeadMs);
+    const requestedLead = Number.isFinite(patternLead) ? patternLead : 400;
+    const parryWindowMs = this.getParryWindowMs();
+    const totalDurationMs = this.totalDurationMs || this.calculateTotalDuration();
+    return clamp(Math.round(requestedLead), parryWindowMs + 20, Math.max(parryWindowMs + 20, totalDurationMs));
+  }
+
+  getCommitCueLabel() {
+    return this.currentPattern.commitCueLabel || "终结段承诺";
+  }
+
+  isCommitCueActive(remainingMs, parryWindowMs) {
+    const remaining = Number.isFinite(remainingMs) ? remainingMs : this.totalDurationMs - this.elapsedMs;
+    const windowMs = Number.isFinite(parryWindowMs) ? parryWindowMs : this.getParryWindowMs();
+    return this.state === COMBAT_STATE.ATTACKING && remaining > windowMs && remaining <= this.getCommitCueLeadMs();
   }
 
   updateWindowIndicator() {
     const parryWindowMs = this.getParryWindowMs();
     const remainingMs = this.totalDurationMs - this.elapsedMs;
     const isActive = this.state === COMBAT_STATE.ATTACKING && remainingMs >= 0 && remainingMs <= parryWindowMs;
-    const nextText = isActive ? "弹反窗口开启 · " + parryWindowMs + "ms" : "判定窗 " + parryWindowMs + "ms";
+    const isCommitCue = this.isCommitCueActive(remainingMs, parryWindowMs);
+    const nextText = isActive
+      ? "弹反窗口开启 · " + parryWindowMs + "ms"
+      : (isCommitCue ? "预读信号 · " + this.getCommitCueLabel() : "判定窗 " + parryWindowMs + "ms");
     if (this.windowIndicator.textContent !== nextText) this.windowIndicator.textContent = nextText;
     this.windowIndicator.dataset.active = isActive ? "true" : "false";
+    this.telegraphIndicator.textContent = isCommitCue
+      ? "预读信号已出现 · " + this.getCommitCueLabel() + " · 等待终结段"
+      : "预读提示 · 先认清终结段的承诺，再进入弹反窗口";
+    this.telegraphIndicator.dataset.active = isCommitCue ? "true" : "false";
   }
 
   setStatus(text, tone) {
@@ -1865,10 +2008,13 @@ class GameEngine {
     }
 
     this.drawBackground(context);
+    this.drawBossSignature(context);
     if (this.showWireframe.checked || this.isEditorMode) this.drawWireframe(context);
     this.drawCombatAnchors(context);
     this.drawCursorTrail(context);
     this.drawCursor(context);
+    this.drawCommitCue(context);
+    this.drawPhaseTransitionBanner(context);
     this.particles.draw(context);
     context.restore();
   }
@@ -1889,6 +2035,183 @@ class GameEngine {
     context.moveTo(startPoint.x, Math.max(0, startPoint.y - 66));
     context.lineTo(endPoint.x, Math.min(this.canvas.height, endPoint.y + 40));
     context.stroke();
+  }
+
+  drawBossSignature(context) {
+    const motif = this.currentBoss.visualMotif;
+    if (!motif) return;
+
+    const phaseIndex = this.isEditorMode ? this.selectedPhaseIndex : this.currentPhaseIndex;
+    const intensity = 0.11 + phaseIndex * 0.035;
+    const accent = this.getPhaseAccentColor();
+    const centerX = this.canvas.width / 2;
+    const centerY = 315;
+    context.save();
+    context.strokeStyle = hexToRgba(accent, intensity);
+    context.fillStyle = hexToRgba(accent, intensity * 0.48);
+    context.lineWidth = 1.5;
+
+    switch (motif.type) {
+      case "ember-seal": {
+        context.setLineDash([5, 7]);
+        [78, 122].forEach(function (radius) {
+          context.beginPath();
+          context.arc(centerX, centerY, radius + phaseIndex * 5, 0, Math.PI * 2);
+          context.stroke();
+        });
+        context.setLineDash([]);
+        for (let index = 0; index < 6; index += 1) {
+          const angle = -Math.PI / 2 + index * Math.PI / 3;
+          context.beginPath();
+          context.moveTo(centerX + Math.cos(angle) * 58, centerY + Math.sin(angle) * 58);
+          context.lineTo(centerX + Math.cos(angle) * 104, centerY + Math.sin(angle) * 104);
+          context.stroke();
+        }
+        break;
+      }
+      case "feather-whorl": {
+        [-1, 0, 1].forEach(function (offset) {
+          const startY = 244 + offset * 54;
+          context.beginPath();
+          context.moveTo(78, startY);
+          context.quadraticCurveTo(250, startY - 108, 462, startY + 8);
+          context.quadraticCurveTo(348, startY + 68, 216, startY + 28);
+          context.stroke();
+        });
+        break;
+      }
+      case "bell-ripple": {
+        [58, 104, 150].forEach(function (radius) {
+          context.beginPath();
+          context.arc(centerX, 270, radius + phaseIndex * 4, Math.PI * 0.14, Math.PI * 0.86);
+          context.stroke();
+        });
+        context.beginPath();
+        context.moveTo(centerX, 150);
+        context.lineTo(centerX, 388);
+        context.stroke();
+        break;
+      }
+      case "string-volley": {
+        context.setLineDash([4, 5]);
+        [112, 206, 394, 488].forEach(function (startX) {
+          context.beginPath();
+          context.moveTo(startX, 148);
+          context.lineTo(centerX, 392);
+          context.stroke();
+        });
+        context.setLineDash([]);
+        break;
+      }
+      case "silk-weave": {
+        [-1, 0, 1].forEach(function (offset) {
+          context.beginPath();
+          context.moveTo(78, 220 + offset * 54);
+          context.bezierCurveTo(170, 96 + offset * 34, 438, 450 - offset * 20, 522, 264 + offset * 48);
+          context.stroke();
+        });
+        break;
+      }
+      case "brush-score": {
+        context.lineWidth = 10;
+        context.globalAlpha = 0.34;
+        [0, 1, 2].forEach(function (index) {
+          context.beginPath();
+          context.moveTo(116, 185 + index * 88);
+          context.bezierCurveTo(260, 150 + index * 88, 350, 400 - index * 42, 476, 372 - index * 38);
+          context.stroke();
+        });
+        break;
+      }
+      case "mirror-tide": {
+        context.beginPath();
+        context.moveTo(88, centerY);
+        context.lineTo(512, centerY);
+        context.stroke();
+        [56, 108, 160].forEach(function (radius) {
+          context.beginPath();
+          context.ellipse(centerX, centerY, radius, Math.max(18, radius * 0.26), 0, 0, Math.PI * 2);
+          context.stroke();
+        });
+        break;
+      }
+      case "stance-line": {
+        context.beginPath();
+        context.moveTo(74, 438);
+        context.lineTo(526, 438);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(172, 390);
+        context.lineTo(centerX, 286);
+        context.lineTo(428, 390);
+        context.stroke();
+        break;
+      }
+      case "twin-ribbon": {
+        context.beginPath();
+        context.ellipse(232, centerY, 138, 72, -0.52, 0, Math.PI * 2);
+        context.stroke();
+        context.beginPath();
+        context.ellipse(368, centerY, 138, 72, 0.52, 0, Math.PI * 2);
+        context.stroke();
+        break;
+      }
+      case "clockwork-wheel": {
+        const radius = 108 + phaseIndex * 5;
+        context.beginPath();
+        context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        context.stroke();
+        for (let index = 0; index < 12; index += 1) {
+          const angle = index * Math.PI / 6;
+          context.beginPath();
+          context.moveTo(centerX + Math.cos(angle) * 34, centerY + Math.sin(angle) * 34);
+          context.lineTo(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius);
+          context.stroke();
+        }
+        break;
+      }
+      case "thunder-fall": {
+        [-92, 0, 92].forEach(function (offset) {
+          context.beginPath();
+          context.moveTo(centerX + offset, 154);
+          context.lineTo(centerX + offset - 24, 236);
+          context.lineTo(centerX + offset + 18, 236);
+          context.lineTo(centerX + offset - 12, 352);
+          context.stroke();
+        });
+        break;
+      }
+      case "neon-lattice": {
+        context.setLineDash([4, 6]);
+        for (let index = 0; index < 5; index += 1) {
+          const x = 132 + index * 84;
+          const y = 190 + index * 52;
+          context.beginPath();
+          context.moveTo(x, 150);
+          context.lineTo(x, 448);
+          context.moveTo(90, y);
+          context.lineTo(510, y);
+          context.stroke();
+        }
+        context.setLineDash([]);
+        break;
+      }
+      case "afterimage-step": {
+        context.setLineDash([14, 9]);
+        for (let index = 0; index < 5; index += 1) {
+          context.beginPath();
+          context.moveTo(96 + index * 74, 232 + (index % 2) * 76);
+          context.lineTo(166 + index * 74, 282 + (index % 2) * 76);
+          context.stroke();
+        }
+        context.setLineDash([]);
+        break;
+      }
+      default:
+        break;
+    }
+
+    context.restore();
   }
 
   drawWireframe(context) {
@@ -2115,6 +2438,48 @@ class GameEngine {
     context.beginPath();
     context.arc(this.cursorPos.x, this.cursorPos.y, 8, 0, Math.PI * 2);
     context.fill();
+    context.restore();
+  }
+
+  drawCommitCue(context) {
+    const remainingMs = this.totalDurationMs - this.elapsedMs;
+    if (!this.isCommitCueActive(remainingMs, this.getParryWindowMs())) return;
+
+    const cueProgress = clamp((this.getCommitCueLeadMs() - remainingMs) / Math.max(1, this.getCommitCueLeadMs() - this.getParryWindowMs()), 0, 1);
+    const radius = 18 + cueProgress * 16;
+    context.save();
+    context.strokeStyle = this.getPhaseAccentColor();
+    context.lineWidth = 2.5;
+    context.globalAlpha = 0.5 + cueProgress * 0.45;
+    context.shadowColor = this.getPhaseAccentColor();
+    context.shadowBlur = 14;
+    context.beginPath();
+    context.arc(this.cursorPos.x, this.cursorPos.y, radius, 0, Math.PI * 2);
+    context.stroke();
+    context.shadowBlur = 0;
+    context.fillStyle = "#fff0cf";
+    context.font = "bold 12px Microsoft YaHei, sans-serif";
+    context.fillText("预读 · " + this.getCommitCueLabel(), 18, 34);
+    context.restore();
+  }
+
+  drawPhaseTransitionBanner(context) {
+    if (!this.isPhaseTransitioning) return;
+
+    const phase = this.getCombatPhase();
+    context.save();
+    context.fillStyle = "rgba(8, 7, 6, 0.68)";
+    context.fillRect(36, 264, this.canvas.width - 72, 116);
+    context.strokeStyle = this.getPhaseAccentColor();
+    context.lineWidth = 2;
+    context.strokeRect(36, 264, this.canvas.width - 72, 116);
+    context.fillStyle = this.getPhaseAccentColor();
+    context.font = "bold 18px Microsoft YaHei, sans-serif";
+    context.textAlign = "center";
+    context.fillText("PHASE " + (this.currentPhaseIndex + 1) + " · " + phase.name, this.canvas.width / 2, 310);
+    context.fillStyle = "#fff0cf";
+    context.font = "12px Microsoft YaHei, sans-serif";
+    context.fillText("新节拍已进入 · 先观察再出手", this.canvas.width / 2, 344);
     context.restore();
   }
 }

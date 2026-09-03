@@ -22,9 +22,12 @@
     maxPlayerHurtboxRadius: 160,
     minParryWindowMs: 30,
     maxParryWindowMs: 1000,
+    minCommitCueLeadMs: 350,
     minBossPhases: 2,
     maxBossPhases: 5,
     maxPhasePostureThreshold: 99,
+    minPhasePostureGainScale: 0.1,
+    maxPhasePostureGainScale: 1,
     minPointX: 0,
     maxPointX: 600,
     minPointY: 0,
@@ -132,6 +135,14 @@
       addIssue(errors, "PARRY_WINDOW_OUT_OF_RANGE", "parryWindowMs", "弹反判定窗必须在 " + CONSTRAINTS.minParryWindowMs + " 到 " + CONSTRAINTS.maxParryWindowMs + "ms 之间。");
     }
 
+    if (!isNonEmptyString(pattern.commitCueLabel)) {
+      addIssue(errors, "MISSING_COMMIT_CUE_LABEL", "commitCueLabel", "招式需要一个可读的终结承诺提示。");
+    }
+
+    if (!Number.isInteger(pattern.commitCueLeadMs) || pattern.commitCueLeadMs < CONSTRAINTS.minCommitCueLeadMs) {
+      addIssue(errors, "COMMIT_CUE_LEAD_OUT_OF_RANGE", "commitCueLeadMs", "预读信号至少需要在终结前 " + CONSTRAINTS.minCommitCueLeadMs + "ms 出现。");
+    }
+
     if (!Array.isArray(pattern.segments) || pattern.segments.length === 0) {
       addIssue(errors, "MISSING_SEGMENTS", "segments", "招式至少需要一个贝塞尔段。");
     }
@@ -172,6 +183,10 @@
 
     if (Number.isInteger(pattern.parryWindowMs) && totalDurationMs > 0 && pattern.parryWindowMs > totalDurationMs) {
       addIssue(errors, "PARRY_WINDOW_EXCEEDS_TOTAL_DURATION", "parryWindowMs", "弹反判定窗不能长于整招时长。");
+    }
+
+    if (Number.isInteger(pattern.commitCueLeadMs) && totalDurationMs > 0 && (pattern.commitCueLeadMs <= pattern.parryWindowMs || pattern.commitCueLeadMs > totalDurationMs)) {
+      addIssue(errors, "COMMIT_CUE_LEAD_OUT_OF_RANGE", "commitCueLeadMs", "预读信号必须早于弹反窗，且不能早于整招开始。");
     }
 
     const terminalImpact = getTerminalImpact(pattern, playerPosition);
@@ -228,6 +243,19 @@
 
     if (!isNonEmptyString(boss.name)) addIssue(errors, "MISSING_BOSS_NAME", "name", "Boss 需要名称。");
     if (!isNonEmptyString(boss.description)) addIssue(errors, "MISSING_BOSS_DESCRIPTION", "description", "Boss 需要人格说明。");
+    if (!boss.inspiration || typeof boss.inspiration !== "object") {
+      addIssue(errors, "MISSING_BOSS_INSPIRATION", "inspiration", "Boss 需要说明其原创定位或机制致敬来源。");
+    } else {
+      if (!isNonEmptyString(boss.inspiration.kind)) addIssue(errors, "MISSING_BOSS_INSPIRATION_KIND", "inspiration.kind", "Boss 需要标明原创或机制致敬定位。");
+      if (!isNonEmptyString(boss.inspiration.sourceGame)) addIssue(errors, "MISSING_BOSS_INSPIRATION_SOURCE", "inspiration.sourceGame", "Boss 需要标明机制来源游戏或 BladeTrace 原创来源。");
+      if (!isNonEmptyString(boss.inspiration.lesson)) addIssue(errors, "MISSING_BOSS_INSPIRATION_LESSON", "inspiration.lesson", "Boss 需要说明可练习的机制，而不是复用受保护的表达。");
+    }
+    if (!boss.visualMotif || typeof boss.visualMotif !== "object") {
+      addIssue(errors, "MISSING_BOSS_VISUAL_MOTIF", "visualMotif", "Boss 需要一个原创的程序化视觉母题。");
+    } else {
+      if (!isNonEmptyString(boss.visualMotif.type)) addIssue(errors, "MISSING_BOSS_VISUAL_MOTIF_TYPE", "visualMotif.type", "Boss 的视觉母题需要类型。");
+      if (!isNonEmptyString(boss.visualMotif.label)) addIssue(errors, "MISSING_BOSS_VISUAL_MOTIF_LABEL", "visualMotif.label", "Boss 的视觉母题需要玩家可读的名称。");
+    }
 
     if (!Array.isArray(boss.phases) || boss.phases.length < CONSTRAINTS.minBossPhases) {
       addIssue(errors, "TOO_FEW_BOSS_PHASES", "phases", "Boss 至少需要 " + CONSTRAINTS.minBossPhases + " 个阶段。");
@@ -258,6 +286,9 @@
       if (!isNonEmptyString(phase.name)) addIssue(errors, "MISSING_PHASE_NAME", path + ".name", path + " 需要名称。");
       if (!isNonEmptyString(phase.description)) addIssue(errors, "MISSING_PHASE_DESCRIPTION", path + ".description", path + " 需要练习提示。");
       if (!isHexColor(phase.accentColor)) addIssue(errors, "INVALID_PHASE_ACCENT", path + ".accentColor", path + " 需要 6 位十六进制强调色。");
+      if (!isFiniteNumber(phase.postureGainScale) || phase.postureGainScale < CONSTRAINTS.minPhasePostureGainScale || phase.postureGainScale > CONSTRAINTS.maxPhasePostureGainScale) {
+        addIssue(errors, "PHASE_POSTURE_GAIN_SCALE_OUT_OF_RANGE", path + ".postureGainScale", path + " 的架势推进倍率必须在 " + CONSTRAINTS.minPhasePostureGainScale + " 到 " + CONSTRAINTS.maxPhasePostureGainScale + " 之间。");
+      }
 
       const threshold = phase.postureThreshold;
       if (!Number.isInteger(threshold) || threshold < 0 || threshold > CONSTRAINTS.maxPhasePostureThreshold) {
@@ -336,6 +367,12 @@
     return { phase: phases[phaseIndex], phaseIndex: phaseIndex };
   }
 
+  function calculatePhasePostureGain(phase, pattern) {
+    const baseGain = pattern && Number.isFinite(pattern.postureGain) ? pattern.postureGain : 0;
+    const scale = phase && Number.isFinite(phase.postureGainScale) ? phase.postureGainScale : 1;
+    return baseGain * scale;
+  }
+
   return Object.freeze({
     CONSTRAINTS: CONSTRAINTS,
     DEFAULTS: DEFAULTS,
@@ -343,6 +380,7 @@
     validateAttackPattern: validateAttackPattern,
     validatePatternLibrary: validatePatternLibrary,
     validateBossLibrary: validateBossLibrary,
-    resolveBossPhase: resolveBossPhase
+    resolveBossPhase: resolveBossPhase,
+    calculatePhasePostureGain: calculatePhasePostureGain
   });
 }));

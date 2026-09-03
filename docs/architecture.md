@@ -12,13 +12,13 @@ BladeTrace 的核心不是一般意义上的“画一条曲线”，而是让开
 - 固定在玩家位置、只在攻击终点结算的空间受击区；
 - 命中、弹反、架势崩溃、忍殺等可审计的战斗状态变化；
 - 对应的 Canvas、HUD、音效和粒子反馈。
-- Boss 的人格、架势驱动阶段、阶段招式池与所见即所得的阶段预览。
+- Boss 的人格、机制出处说明、架势驱动阶段、阶段招式池、阶段推进倍率与所见即所得的阶段预览／直接练习。
 
 架构要服务这件事，而不是为了拆文件而拆文件。浏览器输入、DOM 和 Canvas 不能决定规则；同一套规则将来应该能被单元测试、回放工具和招式编辑器调用。
 
 ## 当前实现的限制
 
-目前的 `GameEngine` 同时保存战斗状态、采样轨迹、监听 DOM、渲染 Canvas、调用音效并管理粒子。阶段 1 的 `pattern-validation.js` 已通过公开的 `validateAttackPattern(pattern)`、`validateBossLibrary(bosses, patterns)` 和 `resolveBossPhase(boss, posture)` seam 校验内置招式、Boss 阶段与编辑后的配置，但它尚未取代浏览器运行时的战斗状态。当前页面内的编辑器仍直接修改 `GameEngine` 持有的内存招式／Boss 副本：默认通过运行时画布的 P0–P3、R（受击区）与 W（弹反窗）手柄调整，直接点击阶段卡预览阶段，复杂字段才按需展开；它会维持相邻段连接点连续，并可调整固定位置的玩家受击区半径、招式内置判定窗、阶段阈值、强调色和招式池。攻击仅在终点用受击区结算，弹反窗则只按时间轴判断；阶段则由敌方架势决定。编辑器尚不提供持久化或导入导出。它适合快速验收，但这些职责共享一个实现后，招式编辑、Boss 阶段、回放、自动测试和特殊攻击会相互牵连。
+目前的 `GameEngine` 同时保存战斗状态、采样轨迹、监听 DOM、渲染 Canvas、调用音效并管理粒子。阶段 1 的 `pattern-validation.js` 已通过公开的 `validateAttackPattern(pattern)`、`validateBossLibrary(bosses, patterns)`、`resolveBossPhase(boss, posture)` 和 `calculatePhasePostureGain(phase, pattern)` seam 校验内置招式、Boss 阶段与编辑后的配置，但它尚未取代浏览器运行时的战斗状态。当前页面内的编辑器仍直接修改 `GameEngine` 持有的内存招式／Boss 副本：默认通过运行时画布的 P0–P3、R（受击区）与 W（弹反窗）手柄调整，直接点击阶段卡预览或直接开始该阶段练习，复杂字段才按需展开；它会维持相邻段连接点连续，并可调整固定位置的玩家受击区半径、招式内置判定窗、阶段阈值、强调色和招式池。攻击仅在终点用受击区结算，弹反窗则只按时间轴判断；阶段由敌方架势和阶段推进倍率共同决定节奏。编辑器尚不提供持久化或导入导出。它适合快速验收，但这些职责共享一个实现后，招式编辑、Boss 阶段、回放、自动测试和特殊攻击会相互牵连。
 
 下一次重构应保留行为，不以“改用框架”为目标；继续保持纯静态部署和无第三方运行时依赖，除非后续需求明确改变这一点。
 
@@ -139,6 +139,8 @@ interface AttackPattern {
   playerHurtboxRadius: number;
   damage: number;
   postureGain: number;
+  commitCueLabel: string;
+  commitCueLeadMs: number;
   segments: AttackSegment[];
 }
 
@@ -147,6 +149,7 @@ interface BossPhase {
   name: string;
   description: string;
   postureThreshold: number;
+  postureGainScale: number;
   accentColor: string;
   patternIds: string[];
 }
@@ -155,6 +158,8 @@ interface Boss {
   id: string;
   name: string;
   description: string;
+  inspiration: { kind: string; sourceGame: string; lesson: string };
+  visualMotif: { type: string; label: string };
   phases: BossPhase[];
 }
 ```

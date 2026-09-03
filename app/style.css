@@ -127,6 +127,15 @@ canvas {
   color: #b0a494;
 }
 
+.boss-origin {
+  margin: 6px 0 0;
+  color: var(--phase-accent);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: 0.65px;
+  text-transform: uppercase;
+}
+
 .boss-phase-hint {
   padding-left: 8px;
   border-left: 2px solid var(--phase-accent);
@@ -303,6 +312,17 @@ output {
   background: #311410;
 }
 
+.runtime-phase-action--practice {
+  color: #a8e3d0;
+  border-color: #3d806d;
+  background: #102c27;
+}
+
+.runtime-phase-action--practice:hover:not(:disabled) {
+  border-color: #78cbb0;
+  background: #163c34;
+}
+
 .runtime-phase-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -448,6 +468,26 @@ output {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 10px;
   letter-spacing: 0.3px;
+}
+
+.telegraph-indicator {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  max-width: 62%;
+  margin: 0;
+  padding: 3px 6px;
+  border-left: 2px solid rgba(201, 160, 99, 0.52);
+  color: #aa9b85;
+  background: rgba(13, 13, 13, 0.72);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.telegraph-indicator[data-active="true"] {
+  border-color: var(--phase-accent);
+  color: #fff0cf;
+  box-shadow: 0 0 12px var(--phase-accent-soft);
 }
 
 .player-status {
