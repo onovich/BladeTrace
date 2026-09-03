@@ -1,11 +1,15 @@
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
+const require = createRequire(import.meta.url);
 const root = resolve(import.meta.dirname, "..");
 const files = {
   html: resolve(root, "app", "index.html"),
   css: resolve(root, "app", "style.css"),
-  script: resolve(root, "app", "game.js")
+  script: resolve(root, "app", "game.js"),
+  patternValidation: resolve(root, "app", "pattern-validation.js"),
+  attackPatterns: resolve(root, "app", "attack-patterns.js")
 };
 
 function assert(condition, message) {
@@ -19,6 +23,12 @@ Object.entries(files).forEach(([name, filePath]) => {
 const html = readFileSync(files.html, "utf8");
 const css = readFileSync(files.css, "utf8");
 const script = readFileSync(files.script, "utf8");
+const patternDataScript = readFileSync(files.attackPatterns, "utf8");
+const patternValidation = require(files.patternValidation);
+const attackPatterns = require(files.attackPatterns);
+const patternReport = patternValidation.validatePatternLibrary(attackPatterns.ATTACK_PATTERNS, {
+  playerPosition: attackPatterns.PLAYER_POSITION
+});
 
 const requiredIds = [
   "gameCanvas",
@@ -57,9 +67,9 @@ const requiredIds = [
   "btn-editor-delete-segment",
   "btn-editor-reset-pattern",
   "btn-deathblow",
-  "enemy-hp-bar",
   "enemy-posture-bar",
   "player-hp-bar",
+  "pattern-description",
   "player-status",
   "timing-feedback"
 ];
@@ -72,7 +82,12 @@ requiredIds.forEach((id) => {
 [
   "spiral-thrust",
   "deceptive-pause",
-  "ashina-flurry",
+  "ashina-flurry"
+].forEach((patternId) => {
+  assert(patternDataScript.includes(patternId), "Missing shipped attack pattern: " + patternId);
+});
+
+[
   "triggerParrySuccess",
   "triggerPlayerHit",
   "enterDeathblowState",
@@ -99,7 +114,11 @@ requiredIds.forEach((id) => {
   "drawParryWindowPreview",
   "addSegmentAfterSelection",
   "deleteSelectedSegment",
-  "handleCanvasPointerDown"
+  "handleCanvasPointerDown",
+  "validateBuiltInPatternLibrary",
+  "ensureCurrentPatternCanStart",
+  "getCurrentPatternValidation",
+  "updatePatternDescription"
 ].forEach((feature) => {
   assert(script.includes(feature), "Missing merged gameplay feature: " + feature);
 });
@@ -108,6 +127,9 @@ assert(html.includes('role="progressbar"'), "HUD progress bars need accessible s
 assert(css.includes(":focus-visible"), "Interactive controls need visible keyboard focus.");
 assert(!html.includes("http://") && !html.includes("https://"), "The standalone demo should not require remote runtime assets.");
 assert(!script.includes("localStorage") && !script.includes("sessionStorage"), "The local pattern editor must not persist browser state.");
+assert(html.includes('src="pattern-validation.js"') && html.includes('src="attack-patterns.js"'), "The standalone entry point must load pattern rules before the game engine.");
+assert(patternReport.isValid, "Every shipped attack pattern must pass the public configuration validator.");
+assert(!script.includes("enemyDamage") && !script.includes("enemyHp"), "Perfect parries must build enemy posture without dealing hidden enemy HP damage.");
 assert(html.includes("玩家受击区") && !html.includes("玩家判定区"), "The editor must distinguish the player hurtbox from the parry window.");
 assert(script.includes("center: PLAYER_POSITION"), "The player hurtbox must remain at the fixed player position.");
 assert(script.includes("this.elapsedMs >= this.totalDurationMs) this.resolveAttackImpact()"), "Only the terminal attack time may resolve a hurtbox impact.");

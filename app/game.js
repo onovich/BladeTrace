@@ -1,5 +1,11 @@
 "use strict";
 
+const PATTERN_VALIDATION = window.BladeTracePatternValidation;
+const ATTACK_PATTERN_DATA = window.BladeTraceAttackPatterns;
+if (!PATTERN_VALIDATION || !ATTACK_PATTERN_DATA) {
+  throw new Error("BladeTrace requires its pattern validation and pattern data modules.");
+}
+
 const COMBAT_STATE = Object.freeze({
   IDLE: "IDLE",
   ATTACKING: "ATTACKING",
@@ -9,11 +15,10 @@ const COMBAT_STATE = Object.freeze({
   DEFEATED: "DEFEATED"
 });
 
-const ENEMY_POSITION = Object.freeze({ x: 300, y: 100 });
-const PLAYER_POSITION = Object.freeze({ x: 300, y: 570 });
+const PLAYER_POSITION = ATTACK_PATTERN_DATA.PLAYER_POSITION;
 const MAX_VALUE = 100;
-const PLAYER_HURTBOX_DEFAULT_RADIUS = 25;
-const PARRY_WINDOW_DEFAULT_MS = 150;
+const PLAYER_HURTBOX_DEFAULT_RADIUS = PATTERN_VALIDATION.DEFAULTS.playerHurtboxRadius;
+const PARRY_WINDOW_DEFAULT_MS = PATTERN_VALIDATION.DEFAULTS.parryWindowMs;
 
 const EASINGS = Object.freeze({
   linear: function (t) { return t; },
@@ -155,84 +160,14 @@ class ParticleSystem {
   }
 }
 
-const ATTACK_PATTERNS = Object.freeze({
-  delayed: {
-    name: "苇名流·延迟斩",
-    parryWindowMs: 150,
-    damage: 25,
-    postureGain: 25,
-    enemyDamage: 5,
-    segments: [
-      { label: "蓄力前摇", p0: ENEMY_POSITION, p1: { x: 120, y: 150 }, p2: { x: 80, y: 300 }, p3: { x: 150, y: 380 }, durationMs: 900, easing: "easeOutCubic" },
-      { label: "骤降斩击", p0: { x: 150, y: 380 }, p1: { x: 200, y: 440 }, p2: { x: 280, y: 520 }, p3: PLAYER_POSITION, durationMs: 220, easing: "easeInExpo" }
-    ]
-  },
-  triple: {
-    name: "三连斩·快速变奏",
-    parryWindowMs: 150,
-    damage: 25,
-    postureGain: 25,
-    enemyDamage: 5,
-    segments: [
-      { label: "一之型", p0: ENEMY_POSITION, p1: { x: 450, y: 180 }, p2: { x: 400, y: 350 }, p3: { x: 260, y: 420 }, durationMs: 500, easing: "easeOutCubic" },
-      { label: "二之型", p0: { x: 260, y: 420 }, p1: { x: 100, y: 300 }, p2: { x: 150, y: 480 }, p3: { x: 280, y: 520 }, durationMs: 400, easing: "easeInOutSine" },
-      { label: "终结型", p0: { x: 280, y: 520 }, p1: { x: 350, y: 450 }, p2: { x: 320, y: 540 }, p3: PLAYER_POSITION, durationMs: 180, easing: "easeInExpo" }
-    ]
-  },
-  overhead: {
-    name: "跳劈·极速下斩",
-    parryWindowMs: 150,
-    damage: 30,
-    postureGain: 25,
-    enemyDamage: 5,
-    segments: [
-      { label: "上挑蓄势", p0: ENEMY_POSITION, p1: { x: 300, y: 40 }, p2: { x: 200, y: 60 }, p3: { x: 200, y: 200 }, durationMs: 750, easing: "easeOutCubic" },
-      { label: "极速下劈", p0: { x: 200, y: 200 }, p1: { x: 200, y: 350 }, p2: { x: 290, y: 480 }, p3: PLAYER_POSITION, durationMs: 160, easing: "easeInExpo" }
-    ]
-  },
-  "spiral-thrust": {
-    name: "螺旋突刺·S 形迷踪",
-    parryWindowMs: 170,
-    damage: 30,
-    postureGain: 25,
-    enemyDamage: 5,
-    segments: [
-      { label: "S 形迷踪", p0: ENEMY_POSITION, p1: { x: 90, y: 320 }, p2: { x: 450, y: 460 }, p3: { x: 445, y: 290 }, durationMs: 900, easing: "slowFastPause" },
-      { label: "死角突刺", p0: { x: 445, y: 290 }, p1: { x: 485, y: 205 }, p2: { x: 365, y: 465 }, p3: PLAYER_POSITION, durationMs: 280, easing: "easeOutExpo" }
-    ]
-  },
-  "deceptive-pause": {
-    name: "伪装慢刀·迟滞暴击",
-    parryWindowMs: 190,
-    damage: 30,
-    postureGain: 25,
-    enemyDamage: 5,
-    segments: [
-      { label: "超长慢刀", p0: ENEMY_POSITION, p1: { x: 300, y: 80 }, p2: { x: 480, y: 90 }, p3: { x: 500, y: 175 }, durationMs: 1500, easing: "linear" },
-      { label: "空中迟滞", p0: { x: 500, y: 175 }, p1: { x: 520, y: 230 }, p2: { x: 455, y: 245 }, p3: { x: 455, y: 285 }, durationMs: 400, easing: "easeInCubic" },
-      { label: "变光下劈", p0: { x: 455, y: 285 }, p1: { x: 420, y: 360 }, p2: { x: 335, y: 485 }, p3: PLAYER_POSITION, durationMs: 250, easing: "easeOutExpo" }
-    ]
-  },
-  "ashina-flurry": {
-    name: "苇名连斩·交错突袭",
-    parryWindowMs: 180,
-    damage: 25,
-    postureGain: 25,
-    enemyDamage: 5,
-    segments: [
-      { label: "起势", p0: ENEMY_POSITION, p1: { x: 450, y: 230 }, p2: { x: 400, y: 120 }, p3: { x: 420, y: 250 }, durationMs: 500, easing: "easeInOutSine" },
-      { label: "交错", p0: { x: 420, y: 250 }, p1: { x: 490, y: 425 }, p2: { x: 175, y: 310 }, p3: { x: 235, y: 420 }, durationMs: 400, easing: "easeInQuad" },
-      { label: "终结", p0: { x: 235, y: 420 }, p1: { x: 265, y: 470 }, p2: { x: 300, y: 520 }, p3: PLAYER_POSITION, durationMs: 300, easing: "easeOutExpo" }
-    ]
-  }
-});
+const ATTACK_PATTERNS = ATTACK_PATTERN_DATA.ATTACK_PATTERNS;
 
-const EDITOR_MIN_DURATION_MS = 50;
-const EDITOR_MIN_PLAYER_HURTBOX_RADIUS = 12;
-const EDITOR_MAX_PLAYER_HURTBOX_RADIUS = 160;
-const EDITOR_MIN_PARRY_WINDOW_MS = 30;
-const EDITOR_MAX_PARRY_WINDOW_MS = 1000;
-const EASING_NAMES = Object.freeze(Object.keys(EASINGS));
+const EDITOR_MIN_DURATION_MS = PATTERN_VALIDATION.CONSTRAINTS.minSegmentDurationMs;
+const EDITOR_MIN_PLAYER_HURTBOX_RADIUS = PATTERN_VALIDATION.CONSTRAINTS.minPlayerHurtboxRadius;
+const EDITOR_MAX_PLAYER_HURTBOX_RADIUS = PATTERN_VALIDATION.CONSTRAINTS.maxPlayerHurtboxRadius;
+const EDITOR_MIN_PARRY_WINDOW_MS = PATTERN_VALIDATION.CONSTRAINTS.minParryWindowMs;
+const EDITOR_MAX_PARRY_WINDOW_MS = PATTERN_VALIDATION.CONSTRAINTS.maxParryWindowMs;
+const EASING_NAMES = PATTERN_VALIDATION.EASING_NAMES;
 
 function normalizePlayerHurtboxRadius(radius) {
   const numericRadius = Number(radius);
@@ -265,10 +200,11 @@ function cloneSegment(segment) {
 function clonePattern(pattern) {
   return {
     name: pattern.name,
+    description: pattern.description,
+    kind: pattern.kind,
     parryWindowMs: normalizeParryWindowMs(pattern.parryWindowMs),
     damage: pattern.damage,
     postureGain: pattern.postureGain,
-    enemyDamage: pattern.enemyDamage,
     playerHurtboxRadius: normalizePlayerHurtboxRadius(pattern.playerHurtboxRadius),
     segments: pattern.segments.map(cloneSegment)
   };
@@ -331,10 +267,10 @@ class GameEngine {
 
     this.state = COMBAT_STATE.IDLE;
     this.playerHp = MAX_VALUE;
-    this.enemyHp = MAX_VALUE;
     this.enemyPosture = 0;
     this.patternLibrary = clonePatternLibrary(ATTACK_PATTERNS);
     this.originalPatternLibrary = clonePatternLibrary(ATTACK_PATTERNS);
+    this.validateBuiltInPatternLibrary();
     this.currentPatternKey = "delayed";
     this.currentPattern = this.patternLibrary[this.currentPatternKey];
     this.startTime = 0;
@@ -353,6 +289,7 @@ class GameEngine {
     this.draggedControl = null;
 
     this.initDom();
+    this.updatePatternDescription();
     this.bindEvents();
     this.resetCombat(false);
     window.requestAnimationFrame(this.loop.bind(this));
@@ -361,8 +298,6 @@ class GameEngine {
   initDom() {
     this.enemyPostureBar = document.getElementById("enemy-posture-bar");
     this.enemyPostureText = document.getElementById("enemy-posture-text");
-    this.enemyHpBar = document.getElementById("enemy-hp-bar");
-    this.enemyHpText = document.getElementById("enemy-hp-text");
     this.playerHpBar = document.getElementById("player-hp-bar");
     this.playerHpText = document.getElementById("player-hp-text");
     this.playerStatus = document.getElementById("player-status");
@@ -371,6 +306,7 @@ class GameEngine {
     this.deathblowOverlay = document.getElementById("deathblow-overlay");
     this.deathblowButton = document.getElementById("btn-deathblow");
     this.patternSelect = document.getElementById("pattern-select");
+    this.patternDescription = document.getElementById("pattern-description");
     this.windowSelect = document.getElementById("window-select");
     this.showWireframe = document.getElementById("show-wireframe");
     this.autoLoop = document.getElementById("auto-loop");
@@ -406,7 +342,6 @@ class GameEngine {
     this.editorDeleteSegmentButton = document.getElementById("btn-editor-delete-segment");
     this.editorResetPatternButton = document.getElementById("btn-editor-reset-pattern");
     this.enemyPostureProgress = document.querySelector(".posture-outer");
-    this.enemyHpProgress = document.querySelector(".enemy-hp-outer");
     this.playerHpProgress = document.querySelector(".hp-outer");
   }
 
@@ -456,6 +391,7 @@ class GameEngine {
     this.currentPattern = nextPattern;
     this.selectedSegmentIndex = 0;
     this.resetCombat(false);
+    this.updatePatternDescription();
     if (this.isEditorMode) {
       this.renderEditor();
       this.setStatus("正在编辑「" + this.currentPattern.name + "」", "neutral");
@@ -591,9 +527,44 @@ class GameEngine {
     if (!this.isEditorMode) return;
 
     const segment = this.getSelectedSegment();
-    this.runtimeEditorSelection.textContent = "画布编辑 · 第 " + (this.selectedSegmentIndex + 1) + "/" + this.currentPattern.segments.length + " 段 · " + segment.label + " · 弹反窗 " + this.currentPattern.parryWindowMs + "ms";
+    const validation = this.getCurrentPatternValidation();
+    const validationLabel = validation.isValid
+      ? (validation.warnings.length > 0 ? " · 终点落空" : " · 配置有效")
+      : " · 配置待修正";
+    this.runtimeEditorSelection.textContent = "画布编辑 · 第 " + (this.selectedSegmentIndex + 1) + "/" + this.currentPattern.segments.length + " 段 · " + segment.label + " · 弹反窗 " + this.currentPattern.parryWindowMs + "ms" + validationLabel;
     this.runtimeEditorSplitButton.disabled = !segment;
     this.runtimeEditorDeleteButton.disabled = this.currentPattern.segments.length <= 1;
+  }
+
+  validateBuiltInPatternLibrary() {
+    const validation = PATTERN_VALIDATION.validatePatternLibrary(this.patternLibrary, {
+      playerPosition: PLAYER_POSITION,
+      supportedEasings: EASING_NAMES
+    });
+    if (!validation.isValid) {
+      throw new Error("BladeTrace 内置招式配置无效：" + validation.errors.map(function (error) { return error.message; }).join("；"));
+    }
+  }
+
+  getCurrentPatternValidation() {
+    return PATTERN_VALIDATION.validateAttackPattern(this.currentPattern, {
+      playerPosition: PLAYER_POSITION,
+      supportedEasings: EASING_NAMES
+    });
+  }
+
+  ensureCurrentPatternCanStart() {
+    const validation = this.getCurrentPatternValidation();
+    if (validation.isValid) return true;
+
+    this.setStatus("招式配置需要修正 · " + validation.errors[0].message, "danger");
+    this.showFeedback("PATTERN INVALID", "danger");
+    return false;
+  }
+
+  updatePatternDescription() {
+    if (!this.patternDescription) return;
+    this.patternDescription.textContent = this.currentPattern.description;
   }
 
   getSelectedSegment() {
@@ -713,6 +684,7 @@ class GameEngine {
 
   setPlayerHurtboxRadius(radius) {
     this.currentPattern.playerHurtboxRadius = normalizePlayerHurtboxRadius(radius);
+    this.updateRuntimeEditorBar();
   }
 
   syncParryWindowInputs() {
@@ -740,6 +712,7 @@ class GameEngine {
 
   setPatternParryWindow(windowMs) {
     this.currentPattern.parryWindowMs = normalizeParryWindowMs(windowMs);
+    this.updateRuntimeEditorBar();
   }
 
   setSegmentPoint(segmentIndex, pointKey, point) {
@@ -760,6 +733,7 @@ class GameEngine {
     }
 
     this.cursorPos = clonePoint(this.getPatternStartPoint());
+    this.updateRuntimeEditorBar();
   }
 
   addSegmentAfterSelection() {
@@ -1089,6 +1063,7 @@ class GameEngine {
 
   startAttack() {
     if (this.isEditorMode || this.state !== COMBAT_STATE.IDLE) return;
+    if (!this.ensureCurrentPatternCanStart()) return;
 
     this.clearAutoStart();
     this.state = COMBAT_STATE.ATTACKING;
@@ -1133,12 +1108,11 @@ class GameEngine {
   triggerParrySuccess() {
     this.state = COMBAT_STATE.PARRY_BOUNCE;
     this.enemyPosture = clamp(this.enemyPosture + this.currentPattern.postureGain, 0, MAX_VALUE);
-    this.enemyHp = clamp(this.enemyHp - this.currentPattern.enemyDamage, 0, MAX_VALUE);
     this.particles.spawnSparks(this.cursorPos.x, this.cursorPos.y, 42);
     this.screenShake = Math.max(this.screenShake, 13);
     this.audio.playDeflect();
     this.showFeedback("PERFECT PARRY · 完美弹反", "success");
-    this.setStatus("弹反成功 · 敌方架势与生命受损", "success");
+    this.setStatus("弹反成功 · 敌方架势上升", "success");
     this.bounce = {
       startX: this.cursorPos.x,
       startY: this.cursorPos.y,
@@ -1244,7 +1218,6 @@ class GameEngine {
     if (this.state !== COMBAT_STATE.DEATHBLOW) return;
 
     this.state = COMBAT_STATE.VICTORY;
-    this.enemyHp = 0;
     this.enemyPosture = MAX_VALUE;
     this.deathblowOverlay.classList.add("hidden");
     this.particles.spawnSparks(this.getPatternStartPoint().x, this.getPatternStartPoint().y, 90);
@@ -1261,7 +1234,6 @@ class GameEngine {
     this.clearAutoStart();
     this.state = COMBAT_STATE.IDLE;
     this.playerHp = MAX_VALUE;
-    this.enemyHp = MAX_VALUE;
     this.enemyPosture = 0;
     this.elapsedMs = 0;
     this.totalDurationMs = 0;
@@ -1328,12 +1300,9 @@ class GameEngine {
   updateHud() {
     this.enemyPostureBar.style.width = this.enemyPosture + "%";
     this.enemyPostureText.textContent = this.enemyPosture + "%";
-    this.enemyHpBar.style.width = this.enemyHp + "%";
-    this.enemyHpText.textContent = "HP " + this.enemyHp + " / " + MAX_VALUE;
     this.playerHpBar.style.width = this.playerHp + "%";
     this.playerHpText.textContent = "HP " + this.playerHp + " / " + MAX_VALUE;
     this.enemyPostureProgress.setAttribute("aria-valuenow", String(this.enemyPosture));
-    this.enemyHpProgress.setAttribute("aria-valuenow", String(this.enemyHp));
     this.playerHpProgress.setAttribute("aria-valuenow", String(this.playerHp));
   }
 

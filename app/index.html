@@ -14,7 +14,6 @@
       <h1 id="game-title" class="hud-title">斩迹 <span>BladeTrace</span></h1>
       <div class="combatant-row">
         <span>苇名剑圣 · 敌方</span>
-        <output id="enemy-hp-text" aria-label="敌方生命值">HP 100 / 100</output>
       </div>
       <div class="bar-label-row">
         <span>架势值 <span lang="en">Posture</span></span>
@@ -22,9 +21,6 @@
       </div>
       <div class="bar-outer posture-outer" role="progressbar" aria-label="敌方架势值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div id="enemy-posture-bar" class="bar-inner posture-inner"></div>
-      </div>
-      <div class="bar-outer enemy-hp-outer" role="progressbar" aria-label="敌方生命值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
-        <div id="enemy-hp-bar" class="bar-inner enemy-hp-inner"></div>
       </div>
     </header>
 
@@ -66,10 +62,11 @@
             <option value="delayed">苇名流·延迟斩</option>
             <option value="triple">三连斩·快速变奏</option>
             <option value="overhead">跳劈·极速下斩</option>
-            <option value="spiral-thrust">螺旋突刺·S 形迷踪</option>
+            <option value="spiral-thrust">螺旋突进·S 形迷踪</option>
             <option value="deceptive-pause">伪装慢刀·迟滞暴击</option>
             <option value="ashina-flurry">苇名连斩·交错突袭</option>
           </select>
+          <p id="pattern-description" class="pattern-description" role="status" aria-live="polite">长前摇后快速落点，练习在最后一瞬读节奏。</p>
         </div>
         <div class="control-group control-group--timing">
           <label for="window-select">弹反难度</label>
@@ -239,6 +236,8 @@
     </section>
   </main>
 
+  <script src="pattern-validation.js"></script>
+  <script src="attack-patterns.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

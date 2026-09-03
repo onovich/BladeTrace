@@ -1,10 +1,10 @@
 # BladeTrace 架构设计（拟议，尚未重构）
 
-> 当前交付仍是零依赖静态网页，融合实现集中在 [`app/game.js`](../app/game.js)。本文件是验收后的重构计划，不表示这里的模块已经存在。
+> 当前交付仍是零依赖静态网页。浏览器整合位于 [`app/game.js`](../app/game.js)，阶段 1 已引入纯规则 [`app/pattern-validation.js`](../app/pattern-validation.js) 和纯数据 [`app/attack-patterns.js`](../app/attack-patterns.js)。本文件描述尚未实施的完整重构计划。
 
 ## 目标与边界
 
-BladeTrace 的核心不是一般意义上的“画一条曲线”，而是让设计者能把一招攻击的空间路径与时间节奏分开描述、观察和验证。一个招式需要表达：
+BladeTrace 的核心不是一般意义上的“画一条曲线”，而是让开发者能把一招攻击的空间路径与时间节奏分开描述、观察和验证，同时让玩家把同一份数据体验为清晰、可重复的弹反练习。一个招式需要表达：
 
 - 多段连续的贝塞尔轨迹；
 - 每段的时间、缓动和语义标签；
@@ -17,7 +17,7 @@ BladeTrace 的核心不是一般意义上的“画一条曲线”，而是让设
 
 ## 当前实现的限制
 
-目前的 `GameEngine` 同时保存战斗状态、采样轨迹、监听 DOM、渲染 Canvas、调用音效并管理粒子。当前页面内的编辑器也直接修改它持有的内存招式副本：默认通过运行时画布的 P0–P3、R（受击区）与 W（弹反窗）手柄调整，复杂字段才按需展开；它会维持相邻段连接点连续，并可调整固定位置的玩家受击区半径和招式内置判定窗（含时间轴轨迹预览）。攻击仅在终点用受击区结算，弹反窗则只按时间轴判断；两者不互相改变。编辑器尚不提供配置校验、持久化或导入导出。它适合快速验收，但这些职责共享一个实现后，招式编辑、回放、自动测试和特殊攻击会相互牵连。
+目前的 `GameEngine` 同时保存战斗状态、采样轨迹、监听 DOM、渲染 Canvas、调用音效并管理粒子。阶段 1 的 `pattern-validation.js` 已通过公开的 `validateAttackPattern(pattern)` seam 校验内置招式和编辑后的配置，但它尚未取代浏览器运行时的战斗状态。当前页面内的编辑器仍直接修改 `GameEngine` 持有的内存招式副本：默认通过运行时画布的 P0–P3、R（受击区）与 W（弹反窗）手柄调整，复杂字段才按需展开；它会维持相邻段连接点连续，并可调整固定位置的玩家受击区半径和招式内置判定窗（含时间轴轨迹预览）。攻击仅在终点用受击区结算，弹反窗则只按时间轴判断；两者不互相改变。编辑器尚不提供持久化或导入导出。它适合快速验收，但这些职责共享一个实现后，招式编辑、回放、自动测试和特殊攻击会相互牵连。
 
 下一次重构应保留行为，不以“改用框架”为目标；继续保持纯静态部署和无第三方运行时依赖，除非后续需求明确改变这一点。
 
@@ -48,7 +48,7 @@ src/
     └── pattern-compiler.test.ts
 ```
 
-`src/` 是未来状态；现在的 `app/` 保持不动，直到验收批准重构。
+`src/` 是未来状态；现在的 `app/` 只进行了数据与配置校验的最小提取，未开始完整重构。
 
 ## 模块、接口与 seam
 
@@ -81,7 +81,7 @@ sampleTrajectory(pattern: CompiledPattern, elapsedMs: number): TrajectorySample
 
 ### 3. `CombatSession`：战斗规则的主 seam
 
-这是最应做成深模块的部分。它拥有 FSM、HP、敌方架势、弹反窗口、忍殺门槛和自动循环的规则，不接触 DOM、Canvas 或 AudioContext。
+这是最应做成深模块的部分。它拥有 FSM、玩家 HP、敌方架势、弹反窗口、忍殺门槛和自动循环的规则，不接触 DOM、Canvas 或 AudioContext。当前普通攻击循环中，完美弹反只增加敌方架势，不包含敌方 HP 伤害。
 
 **Interface（拟议）**：
 
@@ -132,17 +132,17 @@ interface AttackSegment {
 interface AttackPattern {
   id: string;
   name: string;
+  description: string;
   kind: AttackKind;
   parryWindowMs: number;
   playerHurtboxRadius: number;
-  playerDamage: number;
+  damage: number;
   postureGain: number;
-  enemyDamageOnDeflect: number;
   segments: AttackSegment[];
 }
 ```
 
-`kind` 先保留为数据字段。只有在“突刺需要看破、横扫需要跳跃”的输入与结算规则获得确认后，才在 `CombatSession` 增加对应状态；不要先在 UI 中伪装为已有玩法。
+`kind` 目前固定为 `NORMAL`。只有在“突刺需要看破、横扫需要跳跃”的输入与结算规则经过普通攻击闭环验证后，才在 `CombatSession` 增加对应状态；不要先在 UI 中伪装为已有玩法。
 
 ## 运行流
 
