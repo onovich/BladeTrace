@@ -50,7 +50,7 @@
         { label: "极速下劈", p0: { x: 200, y: 200 }, p1: { x: 200, y: 350 }, p2: { x: 290, y: 480 }, p3: PLAYER_POSITION, durationMs: 160, easing: "easeInExpo" }
       ]
     },
-    "spiral-thrust": {
+    "spiral-approach": {
       name: "螺旋突进·S 形迷踪",
       description: "S 形路径遮蔽真正落点；当前仍按普通弹反规则结算。",
       kind: "NORMAL",

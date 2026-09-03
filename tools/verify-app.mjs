@@ -80,11 +80,21 @@ requiredIds.forEach((id) => {
 });
 
 [
-  "spiral-thrust",
+  "spiral-approach",
   "deceptive-pause",
   "ashina-flurry"
 ].forEach((patternId) => {
   assert(patternDataScript.includes(patternId), "Missing shipped attack pattern: " + patternId);
+});
+
+const patternSelectMatch = html.match(/<select id="pattern-select"[\s\S]*?<\/select>/);
+assert(patternSelectMatch, "Missing attack-pattern select.");
+const patternOptionIds = Array.from(patternSelectMatch[0].matchAll(/<option value="([^"]+)"/g), (match) => match[1]);
+Object.keys(attackPatterns.ATTACK_PATTERNS).forEach((patternId) => {
+  assert(patternOptionIds.includes(patternId), "Attack-pattern select is missing data pattern: " + patternId);
+});
+patternOptionIds.forEach((patternId) => {
+  assert(Object.hasOwn(attackPatterns.ATTACK_PATTERNS, patternId), "Attack-pattern select references unknown data pattern: " + patternId);
 });
 
 [
