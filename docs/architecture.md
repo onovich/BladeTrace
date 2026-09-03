@@ -1,6 +1,6 @@
 # BladeTrace 架构设计（拟议，尚未重构）
 
-> 当前交付仍是零依赖静态网页。浏览器整合位于 [`app/game.js`](../app/game.js)，阶段 1 已引入纯规则 [`app/pattern-validation.js`](../app/pattern-validation.js) 和纯数据 [`app/attack-patterns.js`](../app/attack-patterns.js)。本文件描述尚未实施的完整重构计划。
+> 当前交付仍是零依赖静态网页。浏览器整合位于 [`app/game.js`](../app/game.js)，阶段 1 已引入纯规则 [`app/pattern-validation.js`](../app/pattern-validation.js) 和纯数据 [`app/attack-patterns.js`](../app/attack-patterns.js)，其中已包含 Boss 阶段验证与解析。本文件描述尚未实施的完整重构计划。
 
 ## 目标与边界
 
@@ -12,12 +12,13 @@ BladeTrace 的核心不是一般意义上的“画一条曲线”，而是让开
 - 固定在玩家位置、只在攻击终点结算的空间受击区；
 - 命中、弹反、架势崩溃、忍殺等可审计的战斗状态变化；
 - 对应的 Canvas、HUD、音效和粒子反馈。
+- Boss 的人格、架势驱动阶段、阶段招式池与所见即所得的阶段预览。
 
 架构要服务这件事，而不是为了拆文件而拆文件。浏览器输入、DOM 和 Canvas 不能决定规则；同一套规则将来应该能被单元测试、回放工具和招式编辑器调用。
 
 ## 当前实现的限制
 
-目前的 `GameEngine` 同时保存战斗状态、采样轨迹、监听 DOM、渲染 Canvas、调用音效并管理粒子。阶段 1 的 `pattern-validation.js` 已通过公开的 `validateAttackPattern(pattern)` seam 校验内置招式和编辑后的配置，但它尚未取代浏览器运行时的战斗状态。当前页面内的编辑器仍直接修改 `GameEngine` 持有的内存招式副本：默认通过运行时画布的 P0–P3、R（受击区）与 W（弹反窗）手柄调整，复杂字段才按需展开；它会维持相邻段连接点连续，并可调整固定位置的玩家受击区半径和招式内置判定窗（含时间轴轨迹预览）。攻击仅在终点用受击区结算，弹反窗则只按时间轴判断；两者不互相改变。编辑器尚不提供持久化或导入导出。它适合快速验收，但这些职责共享一个实现后，招式编辑、回放、自动测试和特殊攻击会相互牵连。
+目前的 `GameEngine` 同时保存战斗状态、采样轨迹、监听 DOM、渲染 Canvas、调用音效并管理粒子。阶段 1 的 `pattern-validation.js` 已通过公开的 `validateAttackPattern(pattern)`、`validateBossLibrary(bosses, patterns)` 和 `resolveBossPhase(boss, posture)` seam 校验内置招式、Boss 阶段与编辑后的配置，但它尚未取代浏览器运行时的战斗状态。当前页面内的编辑器仍直接修改 `GameEngine` 持有的内存招式／Boss 副本：默认通过运行时画布的 P0–P3、R（受击区）与 W（弹反窗）手柄调整，直接点击阶段卡预览阶段，复杂字段才按需展开；它会维持相邻段连接点连续，并可调整固定位置的玩家受击区半径、招式内置判定窗、阶段阈值、强调色和招式池。攻击仅在终点用受击区结算，弹反窗则只按时间轴判断；阶段则由敌方架势决定。编辑器尚不提供持久化或导入导出。它适合快速验收，但这些职责共享一个实现后，招式编辑、Boss 阶段、回放、自动测试和特殊攻击会相互牵连。
 
 下一次重构应保留行为，不以“改用框架”为目标；继续保持纯静态部署和无第三方运行时依赖，除非后续需求明确改变这一点。
 
@@ -81,7 +82,7 @@ sampleTrajectory(pattern: CompiledPattern, elapsedMs: number): TrajectorySample
 
 ### 3. `CombatSession`：战斗规则的主 seam
 
-这是最应做成深模块的部分。它拥有 FSM、玩家 HP、敌方架势、弹反窗口、忍殺门槛和自动循环的规则，不接触 DOM、Canvas 或 AudioContext。当前普通攻击循环中，完美弹反只增加敌方架势，不包含敌方 HP 伤害。
+这是最应做成深模块的部分。它拥有 FSM、玩家 HP、敌方架势、弹反窗口、Boss 阶段门槛、忍殺门槛和自动循环的规则，不接触 DOM、Canvas 或 AudioContext。当前普通攻击循环中，完美弹反只增加敌方架势，不包含敌方 HP 伤害；架势达到阶段阈值后，下一轮攻击切入对应阶段招式池。
 
 **Interface（拟议）**：
 
@@ -93,7 +94,7 @@ session.tick(atMs: number): CombatTransition
 session.snapshot(): CombatSnapshot
 ```
 
-`CombatTransition` 返回新的快照及 `AttackStarted`、`Parried`、`PlayerHit`、`AttackMissed`、`DeathblowReady`、`DeathblowExecuted` 等事件。`CombatSession` 在终点时以固定的玩家位置和受击区半径结算 `PlayerHit` 或 `AttackMissed`；弹反窗只比较时间戳。输入 Adapter 和渲染 Adapter 只消费结果，不自行判断“是否在 150ms 窗口内”。这让规则可以被固定时间戳的测试直接覆盖。
+`CombatTransition` 返回新的快照及 `AttackStarted`、`Parried`、`BossPhaseChanged`、`PlayerHit`、`AttackMissed`、`DeathblowReady`、`DeathblowExecuted` 等事件。`CombatSession` 在终点时以固定的玩家位置和受击区半径结算 `PlayerHit` 或 `AttackMissed`；弹反窗只比较时间戳；阶段只根据架势阈值解析。输入 Adapter 和渲染 Adapter 只消费结果，不自行判断“是否在 150ms 窗口内”。这让规则可以被固定时间戳的测试直接覆盖。
 
 ### 4. 呈现与外部设备 Adapter
 
@@ -140,6 +141,22 @@ interface AttackPattern {
   postureGain: number;
   segments: AttackSegment[];
 }
+
+interface BossPhase {
+  id: string;
+  name: string;
+  description: string;
+  postureThreshold: number;
+  accentColor: string;
+  patternIds: string[];
+}
+
+interface Boss {
+  id: string;
+  name: string;
+  description: string;
+  phases: BossPhase[];
+}
 ```
 
 `kind` 目前固定为 `NORMAL`。只有在“突刺需要看破、横扫需要跳跃”的输入与结算规则经过普通攻击闭环验证后，才在 `CombatSession` 增加对应状态；不要先在 UI 中伪装为已有玩法。
@@ -155,17 +172,17 @@ BrowserInputAdapter ──命令──► CombatSession ──快照/事件─�
                                      └──────────────────────► WebAudioAdapter
                                                                 EffectsRenderer
 
-PatternCatalog ──► PatternCompiler ──► TrajectoryEngine ──► CombatSession
+BossCatalog + PatternCatalog ──► PatternCompiler ──► TrajectoryEngine ──► CombatSession
 ```
 
 唯一的规则权威是 `CombatSession`；唯一的轨迹采样权威是 `TrajectoryEngine`。这样既避免在 HUD、Canvas 和输入处理里复制窗口判定，又让错误具有很好的 locality。
 
 ## 测试策略
 
-1. `PatternCompiler`：拒绝空段、负时长、未知缓动和不连续的 `p3 → p0`；验证每个预设可编译。
+1. `PatternCompiler`：拒绝空段、负时长、未知缓动和不连续的 `p3 → p0`；验证每个预设和 Boss 阶段招式池可编译。
 2. `TrajectoryEngine`：在每段起点、终点和边界时间采样，验证坐标、段索引和剩余时间。
-3. `CombatSession`：固定时间戳测试早按、窗口内弹反、逾时的终点受击与攻击落空、路径中途穿过受击区但终点不命中、4 次架势满、忍殺、重置与自动循环；另验证改变受击区不会改变弹反窗口。
-4. 浏览器冒烟：使用真实浏览器检查按钮、Space、画布点击、HUD 文本、键盘焦点和 320/768/1024/1440 宽度。
+3. `CombatSession`：固定时间戳测试早按、窗口内弹反、阶段阈值切换、逾时的终点受击与攻击落空、路径中途穿过受击区但终点不命中、4 次架势满、忍殺、重置与自动循环；另验证改变受击区不会改变弹反窗口。
+4. 浏览器冒烟：使用真实浏览器检查 Boss 切换、阶段卡预览、阶段招式池编辑、按钮、Space、画布点击、HUD 文本、键盘焦点和 320/768/1024/1440 宽度。
 
 这些测试都穿过模块的 Interface，而不是窥探内部变量。
 

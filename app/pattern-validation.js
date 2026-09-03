@@ -22,6 +22,9 @@
     maxPlayerHurtboxRadius: 160,
     minParryWindowMs: 30,
     maxParryWindowMs: 1000,
+    minBossPhases: 2,
+    maxBossPhases: 5,
+    maxPhasePostureThreshold: 99,
     minPointX: 0,
     maxPointX: 600,
     minPointY: 0,
@@ -48,6 +51,10 @@
 
   function isNonEmptyString(value) {
     return typeof value === "string" && value.trim().length > 0;
+  }
+
+  function isHexColor(value) {
+    return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
   }
 
   function pointsMatch(first, second) {
@@ -212,11 +219,130 @@
     };
   }
 
+  function validateBoss(boss, patterns) {
+    const errors = [];
+    if (!boss || typeof boss !== "object") {
+      addIssue(errors, "INVALID_BOSS", "boss", "Boss 必须是对象。");
+      return { isValid: false, errors: errors };
+    }
+
+    if (!isNonEmptyString(boss.name)) addIssue(errors, "MISSING_BOSS_NAME", "name", "Boss 需要名称。");
+    if (!isNonEmptyString(boss.description)) addIssue(errors, "MISSING_BOSS_DESCRIPTION", "description", "Boss 需要人格说明。");
+
+    if (!Array.isArray(boss.phases) || boss.phases.length < CONSTRAINTS.minBossPhases) {
+      addIssue(errors, "TOO_FEW_BOSS_PHASES", "phases", "Boss 至少需要 " + CONSTRAINTS.minBossPhases + " 个阶段。");
+      return { isValid: false, errors: errors };
+    }
+    if (boss.phases.length > CONSTRAINTS.maxBossPhases) {
+      addIssue(errors, "TOO_MANY_BOSS_PHASES", "phases", "Boss 最多支持 " + CONSTRAINTS.maxBossPhases + " 个阶段。");
+    }
+
+    const phaseIds = new Set();
+    let previousThreshold = null;
+    boss.phases.forEach(function (phase, index) {
+      const path = "phases[" + index + "]";
+      if (!phase || typeof phase !== "object") {
+        addIssue(errors, "INVALID_BOSS_PHASE", path, path + " 必须是对象。");
+        previousThreshold = null;
+        return;
+      }
+
+      if (!isNonEmptyString(phase.id)) {
+        addIssue(errors, "MISSING_PHASE_ID", path + ".id", path + " 需要稳定 ID。");
+      } else if (phaseIds.has(phase.id)) {
+        addIssue(errors, "DUPLICATE_PHASE_ID", path + ".id", "同一 Boss 内的阶段 ID 不能重复。");
+      } else {
+        phaseIds.add(phase.id);
+      }
+
+      if (!isNonEmptyString(phase.name)) addIssue(errors, "MISSING_PHASE_NAME", path + ".name", path + " 需要名称。");
+      if (!isNonEmptyString(phase.description)) addIssue(errors, "MISSING_PHASE_DESCRIPTION", path + ".description", path + " 需要练习提示。");
+      if (!isHexColor(phase.accentColor)) addIssue(errors, "INVALID_PHASE_ACCENT", path + ".accentColor", path + " 需要 6 位十六进制强调色。");
+
+      const threshold = phase.postureThreshold;
+      if (!Number.isInteger(threshold) || threshold < 0 || threshold > CONSTRAINTS.maxPhasePostureThreshold) {
+        addIssue(errors, "PHASE_THRESHOLD_OUT_OF_RANGE", path + ".postureThreshold", path + " 的架势阈值必须是 0 到 " + CONSTRAINTS.maxPhasePostureThreshold + " 的整数。");
+      } else {
+        if (index === 0 && threshold !== 0) {
+          addIssue(errors, "FIRST_PHASE_THRESHOLD_MUST_BE_ZERO", path + ".postureThreshold", "首阶段的架势阈值必须为 0。");
+        }
+        if (index > 0 && previousThreshold !== null && threshold <= previousThreshold) {
+          addIssue(errors, "PHASE_THRESHOLD_NOT_STRICTLY_INCREASING", path + ".postureThreshold", "后续阶段的架势阈值必须严格递增。");
+        }
+        previousThreshold = threshold;
+      }
+
+      if (!Array.isArray(phase.patternIds) || phase.patternIds.length === 0) {
+        addIssue(errors, "EMPTY_PHASE_PATTERN_POOL", path + ".patternIds", path + " 至少需要一招。");
+        return;
+      }
+
+      const patternIds = new Set();
+      phase.patternIds.forEach(function (patternId, patternIndex) {
+        const patternPath = path + ".patternIds[" + patternIndex + "]";
+        if (!isNonEmptyString(patternId) || !patterns || !Object.hasOwn(patterns, patternId)) {
+          addIssue(errors, "UNKNOWN_PHASE_PATTERN", patternPath, path + " 引用了不存在的招式 ID。");
+          return;
+        }
+        if (patternIds.has(patternId)) {
+          addIssue(errors, "DUPLICATE_PHASE_PATTERN", patternPath, path + " 的招式池不能重复同一招。");
+          return;
+        }
+        patternIds.add(patternId);
+      });
+    });
+
+    return { isValid: errors.length === 0, errors: errors };
+  }
+
+  function validateBossLibrary(bosses, patterns) {
+    const errors = [];
+    const results = {};
+    if (!bosses || typeof bosses !== "object" || Array.isArray(bosses)) {
+      addIssue(errors, "INVALID_BOSS_LIBRARY", "bosses", "Boss 库必须是以 ID 为键的对象。");
+      return { isValid: false, errors: errors, results: results };
+    }
+
+    const entries = Object.entries(bosses);
+    if (entries.length === 0) addIssue(errors, "EMPTY_BOSS_LIBRARY", "bosses", "Boss 库至少需要一个 Boss。");
+
+    entries.forEach(function (entry) {
+      const key = entry[0];
+      const result = validateBoss(entry[1], patterns);
+      results[key] = result;
+      result.errors.forEach(function (error) {
+        errors.push({
+          code: error.code,
+          path: key + "." + error.path,
+          message: "[" + key + "] " + error.message
+        });
+      });
+    });
+
+    return { isValid: errors.length === 0, errors: errors, results: results };
+  }
+
+  function resolveBossPhase(boss, posture) {
+    const phases = Array.isArray(boss && boss.phases) ? boss.phases : [];
+    if (phases.length === 0) return { phase: null, phaseIndex: -1 };
+
+    const postureValue = Number.isFinite(Number(posture)) ? Number(posture) : 0;
+    let phaseIndex = 0;
+    phases.forEach(function (phase, index) {
+      if (phase && Number.isInteger(phase.postureThreshold) && postureValue >= phase.postureThreshold) {
+        phaseIndex = index;
+      }
+    });
+    return { phase: phases[phaseIndex], phaseIndex: phaseIndex };
+  }
+
   return Object.freeze({
     CONSTRAINTS: CONSTRAINTS,
     DEFAULTS: DEFAULTS,
     EASING_NAMES: EASING_NAMES,
     validateAttackPattern: validateAttackPattern,
-    validatePatternLibrary: validatePatternLibrary
+    validatePatternLibrary: validatePatternLibrary,
+    validateBossLibrary: validateBossLibrary,
+    resolveBossPhase: resolveBossPhase
   });
 }));

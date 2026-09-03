@@ -13,8 +13,11 @@
       <p class="eyebrow">BEZIER DEFLECTION PROTOTYPE</p>
       <h1 id="game-title" class="hud-title">斩迹 <span>BladeTrace</span></h1>
       <div class="combatant-row">
-        <span>苇名剑圣 · 敌方</span>
+        <span id="boss-name">灰烬监军·烬卫</span>
+        <output id="boss-phase-label" aria-live="polite">PHASE I · 戒律试探</output>
       </div>
+      <p id="boss-personality" class="boss-personality">守序、克制的重剑监军，会随架势受压持续缩短你的犹豫空间。</p>
+      <p id="boss-phase-hint" class="boss-phase-hint" role="status" aria-live="polite">用长前摇和高位落点测试玩家会不会过早出手。</p>
       <div class="bar-label-row">
         <span>架势值 <span lang="en">Posture</span></span>
         <output id="enemy-posture-text">0%</output>
@@ -27,7 +30,7 @@
     <section class="canvas-frame" aria-label="战斗轨迹画布">
       <canvas id="gameCanvas" width="600" height="650" role="img" aria-label="敌方剑锋沿贝塞尔轨迹接近玩家受击区的战斗可视化"></canvas>
       <p id="timing-feedback" class="timing-feedback" aria-live="polite" aria-atomic="true"></p>
-      <p id="window-indicator" class="window-indicator" aria-live="polite">判定窗 150ms</p>
+      <p id="window-indicator" class="window-indicator" aria-live="polite">判定窗 220ms</p>
     </section>
 
     <section id="runtime-editor-bar" class="runtime-editor-bar hidden" aria-label="画布编辑工具">
@@ -35,6 +38,19 @@
         <p id="runtime-editor-selection" class="runtime-editor-selection" role="status" aria-live="polite">画布编辑已开启</p>
         <p id="runtime-editor-help" class="runtime-editor-help">直接在轨迹上操作：拖 P0–P3 改路径，拖 <strong>R</strong> 调玩家受击区，拖橙色 <strong>W</strong> 调内置弹反判定窗。</p>
       </div>
+      <section class="runtime-phase-editor" aria-labelledby="runtime-phase-title">
+        <div class="runtime-phase-editor__heading">
+          <div>
+            <h2 id="runtime-phase-title">Boss 阶段预览</h2>
+            <p id="runtime-phase-selection" role="status" aria-live="polite">点击阶段卡立即预览其招式池与画布强调色。</p>
+          </div>
+          <div class="runtime-phase-editor__actions">
+            <button id="btn-runtime-phase-add" class="runtime-phase-action" type="button">新增阶段</button>
+            <button id="btn-runtime-phase-delete" class="runtime-phase-action runtime-phase-action--delete" type="button">删除阶段</button>
+          </div>
+        </div>
+        <div id="runtime-phase-list" class="runtime-phase-list" aria-label="当前 Boss 的阶段列表"></div>
+      </section>
       <div class="runtime-editor-actions">
         <button id="btn-runtime-editor-split" class="runtime-editor-action runtime-editor-action--split" type="button">拆分当前段</button>
         <button id="btn-runtime-editor-delete" class="runtime-editor-action runtime-editor-action--delete" type="button">删除当前段</button>
@@ -56,24 +72,22 @@
 
     <section id="controls-overlay" aria-label="战斗控制">
       <div class="control-grid">
+        <div class="control-group control-group--boss">
+          <label for="boss-select">选择 Boss</label>
+          <select id="boss-select" aria-describedby="boss-select-description"></select>
+          <p id="boss-select-description" class="boss-select-description">Boss 的阶段随敌方架势自动推进；进入画布编辑后可直接预览和调整每个阶段。</p>
+        </div>
         <div class="control-group">
-          <label for="pattern-select">选择招式</label>
-          <select id="pattern-select">
-            <option value="delayed">苇名流·延迟斩</option>
-            <option value="triple">三连斩·快速变奏</option>
-            <option value="overhead">跳劈·极速下斩</option>
-            <option value="spiral-approach">螺旋突进·S 形迷踪</option>
-            <option value="deceptive-pause">伪装慢刀·迟滞暴击</option>
-            <option value="ashina-flurry">苇名连斩·交错突袭</option>
-          </select>
+          <label for="pattern-select">当前阶段招式</label>
+          <select id="pattern-select"></select>
           <p id="pattern-description" class="pattern-description" role="status" aria-live="polite">长前摇后快速落点，练习在最后一瞬读节奏。</p>
         </div>
         <div class="control-group control-group--timing">
           <label for="window-select">弹反难度</label>
           <select id="window-select">
             <option value="pattern">招式内置判定窗</option>
-            <option value="220">简单 · 220ms</option>
-            <option value="150" selected>修罗 · 150ms</option>
+            <option value="220" selected>练习 · 220ms</option>
+            <option value="150">修罗 · 150ms</option>
             <option value="90">苦难 · 90ms</option>
           </select>
           <p class="timing-editor-hint">进入画布编辑后，拖动橙色 <strong>W</strong> 手柄即可直接调整内置窗口。</p>
@@ -116,6 +130,51 @@
 
       <p class="editor-local-note"><strong>仅本地临时修改。</strong>不会上传或写回源码；刷新页面后会恢复本页初始配置。</p>
       <p id="editor-canvas-help" class="editor-canvas-help">常用编辑直接在画布完成：点击曲线选段，拖 P0–P3 修改路径，拖 R 调整受击区，拖 W 调整内置弹反窗。下面仅保留命名、精确数值、缓动与段落管理等高级参数。</p>
+
+      <section class="editor-phase-section" aria-labelledby="editor-phase-title">
+        <div class="editor-phase-section__heading">
+          <div>
+            <h3 id="editor-phase-title">当前 Boss 阶段</h3>
+            <p>先在上方运行时阶段卡中选中要预览的阶段；画布、招式池与强调色会即时切换。</p>
+          </div>
+          <button id="btn-editor-reset-boss" class="editor-reset-btn" type="button">恢复当前 Boss 阶段</button>
+        </div>
+        <div class="editor-phase-field-grid">
+          <label for="editor-phase-name">阶段名称
+            <input id="editor-phase-name" type="text" maxlength="48" autocomplete="off">
+          </label>
+          <label for="editor-phase-description">阶段提示
+            <input id="editor-phase-description" type="text" maxlength="96" autocomplete="off">
+          </label>
+          <label for="editor-phase-accent">强调色
+            <input id="editor-phase-accent" type="color" value="#c98744">
+          </label>
+        </div>
+        <div class="editor-phase-threshold">
+          <div class="editor-phase-threshold__heading">
+            <div>
+              <h3>转入架势阈值</h3>
+              <p>正式战斗中，敌方架势达到这个值时会进入本阶段。首阶段固定为 0%。</p>
+            </div>
+            <output id="editor-phase-threshold-value" class="editor-phase-threshold-value" for="editor-phase-threshold editor-phase-threshold-number" aria-live="polite">0%</output>
+          </div>
+          <div class="editor-phase-threshold-controls">
+            <label for="editor-phase-threshold">拖动调整阈值
+              <input id="editor-phase-threshold" type="range" min="0" max="99" step="1" value="0">
+            </label>
+            <label for="editor-phase-threshold-number">精确值（%）
+              <input id="editor-phase-threshold-number" type="number" min="0" max="99" step="1" inputmode="numeric" value="0">
+            </label>
+          </div>
+        </div>
+        <div class="editor-phase-pool">
+          <div class="editor-phase-pool__heading">
+            <h3>阶段招式池</h3>
+            <p>点击卡片加入或移出当前阶段。每个阶段至少保留一招；自动连续发招会在池内顺序轮换。</p>
+          </div>
+          <div id="editor-phase-pattern-list" class="editor-phase-pattern-list" aria-label="当前阶段的招式池编辑"></div>
+        </div>
+      </section>
 
       <div class="editor-pattern-field">
         <label for="editor-pattern-name">招式名称</label>
@@ -206,11 +265,11 @@
             <h3 id="editor-parry-window-title">招式内置判定窗</h3>
             <p>从攻击终点时刻向前倒数的完美弹反时长。画布中的橙金高亮会即时显示对应的实际轨迹范围，与玩家受击区无关。</p>
           </div>
-          <output id="editor-parry-window-value" class="editor-window-value" for="editor-parry-window editor-parry-window-number" aria-live="polite">窗口 150ms</output>
+          <output id="editor-parry-window-value" class="editor-window-value" for="editor-parry-window editor-parry-window-number" aria-live="polite">窗口 220ms</output>
         </div>
         <div class="editor-window-controls">
           <label for="editor-parry-window">拖动调整时长
-            <input id="editor-parry-window" class="editor-window-range" type="range" min="30" max="1000" step="1" value="150" aria-describedby="editor-parry-window-help">
+            <input id="editor-parry-window" class="editor-window-range" type="range" min="30" max="1000" step="1" value="220" aria-describedby="editor-parry-window-help">
           </label>
           <label for="editor-parry-window-number">精确值（ms）
             <input id="editor-parry-window-number" type="number" min="30" max="1000" step="1" inputmode="numeric" value="150" aria-describedby="editor-parry-window-help">

@@ -5,10 +5,13 @@ const test = require("node:test");
 const {
   EASING_NAMES,
   validateAttackPattern,
-  validatePatternLibrary
+  validatePatternLibrary,
+  validateBossLibrary,
+  resolveBossPhase
 } = require("../app/pattern-validation.js");
 const {
   ATTACK_PATTERNS,
+  BOSS_LIBRARY,
   PLAYER_POSITION
 } = require("../app/attack-patterns.js");
 
@@ -48,7 +51,7 @@ test("validates every shipped ordinary-attack preset at the public pattern seam"
   const result = validatePatternLibrary(ATTACK_PATTERNS, { playerPosition: PLAYER_POSITION });
 
   assert.equal(result.isValid, true);
-  assert.equal(Object.keys(result.results).length, 6);
+  assert.equal(Object.keys(result.results).length, 9);
   Object.values(result.results).forEach((patternResult) => {
     assert.equal(patternResult.isValid, true);
     assert.equal(patternResult.terminalImpact.hitsPlayerHurtbox, true);
@@ -84,4 +87,32 @@ test("keeps an intentional terminal miss playable while flagging it for the desi
   assert.equal(result.isValid, true);
   assert.equal(result.terminalImpact.hitsPlayerHurtbox, false);
   assert.ok(result.warnings.some((warning) => warning.code === "TERMINAL_ENDPOINT_MISSES_PLAYER_HURTBOX"));
+});
+
+test("validates shipped multi-phase bosses and resolves phases from enemy posture", () => {
+  const result = validateBossLibrary(BOSS_LIBRARY, ATTACK_PATTERNS);
+  const cinderWarden = BOSS_LIBRARY["cinder-warden"];
+
+  assert.equal(result.isValid, true);
+  assert.equal(Object.keys(result.results).length, 3);
+  assert.equal(cinderWarden.phases.length, 3);
+  assert.equal(resolveBossPhase(cinderWarden, 0).phaseIndex, 0);
+  assert.equal(resolveBossPhase(cinderWarden, 49).phaseIndex, 0);
+  assert.equal(resolveBossPhase(cinderWarden, 50).phaseIndex, 1);
+  assert.equal(resolveBossPhase(cinderWarden, 75).phaseIndex, 2);
+});
+
+test("rejects invalid boss phase thresholds and unknown phase attack patterns", () => {
+  const bosses = JSON.parse(JSON.stringify(BOSS_LIBRARY));
+  bosses["cinder-warden"].phases[0].postureThreshold = 10;
+  bosses["cinder-warden"].phases[1].postureThreshold = 10;
+  bosses["cinder-warden"].phases[2].patternIds = ["not-a-shipped-pattern"];
+
+  const result = validateBossLibrary(bosses, ATTACK_PATTERNS);
+  const errorCodes = result.errors.map((error) => error.code);
+
+  assert.equal(result.isValid, false);
+  assert.ok(errorCodes.includes("FIRST_PHASE_THRESHOLD_MUST_BE_ZERO"));
+  assert.ok(errorCodes.includes("PHASE_THRESHOLD_NOT_STRICTLY_INCREASING"));
+  assert.ok(errorCodes.includes("UNKNOWN_PHASE_PATTERN"));
 });
