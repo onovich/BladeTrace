@@ -33,6 +33,10 @@ const bossReport = patternValidation.validateBossLibrary(attackPatterns.BOSS_LIB
 
 const requiredIds = [
   "gameCanvas",
+  "blade-editor",
+  "blade-out-speed",
+  "blade-return-speed",
+  "blade-preview",
   "boss-name",
   "boss-phase-label",
   "boss-personality",
@@ -40,7 +44,6 @@ const requiredIds = [
   "boss-phase-hint",
   "boss-select",
   "pattern-select",
-  "window-select",
   "show-wireframe",
   "auto-loop",
   "sound-toggle",
@@ -78,11 +81,6 @@ const requiredIds = [
   "editor-hurtbox-radius",
   "editor-hurtbox-radius-number",
   "editor-hurtbox-value",
-  "editor-parry-window",
-  "editor-parry-window-number",
-  "editor-parry-window-value",
-  "editor-parry-window-status",
-  "btn-editor-use-pattern-window",
   "btn-editor-add-segment",
   "btn-editor-delete-segment",
   "btn-editor-reset-pattern",
@@ -118,6 +116,8 @@ assert(script.includes("phase.patternIds"), "Attack-pattern select must be const
 
 [
   "triggerParrySuccess",
+  "triggerBladeClash",
+  "drawPlayerBlade",
   "triggerPlayerHit",
   "enterDeathblowState",
   "executeDeathblow",
@@ -133,14 +133,7 @@ assert(script.includes("phase.patternIds"), "Attack-pattern select must be const
   "findPlayerHurtboxResizeHandle",
   "resolveAttackImpact",
   "triggerAttackMiss",
-  "normalizeParryWindowMs",
-  "setPatternParryWindow",
-  "applyPatternParryWindow",
-  "getParryWindowPreview",
-  "findParryWindowResizeHandle",
-  "setParryWindowFromCanvasPoint",
   "toggleAdvancedEditorPanel",
-  "drawParryWindowPreview",
   "addSegmentAfterSelection",
   "deleteSelectedSegment",
   "handleCanvasPointerDown",
@@ -186,7 +179,7 @@ assert(!script.includes("enemyDamage") && !script.includes("enemyHp"), "Perfect 
 assert(!patternDataScript.includes("spiral-thrust"), "S-curve approach must not be modeled as a thrust before thrust mechanics exist.");
 assert(html.includes("玩家受击区") && !html.includes("玩家判定区"), "The editor must distinguish the player hurtbox from the parry window.");
 assert(script.includes("center: PLAYER_POSITION"), "The player hurtbox must remain at the fixed player position.");
-assert(script.includes("this.elapsedMs >= this.totalDurationMs) this.resolveAttackImpact()"), "Only the terminal attack time may resolve a hurtbox impact.");
-assert(html.includes("拖橙色 <strong>W</strong> 调内置弹反判定窗"), "The canvas editor must expose a direct parry-window handle.");
+assert(script.includes("end>=this.startTime+this.totalDurationMs)this.resolveAttackImpact()"), "Only the terminal attack time may resolve a hurtbox impact.");
+assert(html.includes("拖虚线圈边缘调弹反半径"), "The canvas editor must expose a direct parry-window handle.");
 
 console.log("BladeTrace static app verification passed.");

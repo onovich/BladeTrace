@@ -62,13 +62,13 @@ test("validates every shipped ordinary-attack preset at the public pattern seam"
   assert.ok(EASING_NAMES.includes("easeInExpo"));
 });
 
-test("rejects invalid duration, easing, continuity, hurtbox, and parry-window constraints", () => {
+test("rejects invalid duration, easing, continuity, hurtbox, and player-blade constraints", () => {
   const pattern = createPattern();
   pattern.segments[0].durationMs = 49;
   pattern.segments[1].easing = "unrecognized-easing";
   pattern.segments[1].p0 = { x: 241, y: 430 };
   pattern.playerHurtboxRadius = 10;
-  pattern.parryWindowMs = 1001;
+  pattern.playerOutSpeed = -1;
   pattern.commitCueLabel = "";
   pattern.commitCueLeadMs = 200;
 
@@ -80,7 +80,7 @@ test("rejects invalid duration, easing, continuity, hurtbox, and parry-window co
   assert.ok(errorCodes.includes("UNKNOWN_EASING"));
   assert.ok(errorCodes.includes("SEGMENT_ENDPOINT_DISCONTINUITY"));
   assert.ok(errorCodes.includes("PLAYER_HURTBOX_RADIUS_OUT_OF_RANGE"));
-  assert.ok(errorCodes.includes("PARRY_WINDOW_OUT_OF_RANGE"));
+  assert.ok(errorCodes.includes("INVALID_PLAYER_BLADE_PARAMETER"));
   assert.ok(errorCodes.includes("MISSING_COMMIT_CUE_LABEL"));
   assert.ok(errorCodes.includes("COMMIT_CUE_LEAD_OUT_OF_RANGE"));
 });

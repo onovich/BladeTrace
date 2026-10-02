@@ -6,6 +6,7 @@
   <meta name="description" content="BladeTrace 是一个通过多段三阶贝塞尔轨迹与分段缓动模拟弹刀节奏的浏览器原型。">
   <title>斩迹 (BladeTrace) · 弹刀轨迹模拟器</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme.css">
 </head>
 <body>
   <main id="game-container" aria-labelledby="game-title">
@@ -30,15 +31,20 @@
 
     <section class="canvas-frame" aria-label="战斗轨迹画布">
       <canvas id="gameCanvas" width="600" height="650" role="img" aria-label="敌方剑锋沿贝塞尔轨迹接近玩家受击区的战斗可视化"></canvas>
+        <div id="blade-editor" class="blade-editor" hidden>
+          <label>出刀速度 (px/s) <input id="blade-out-speed" type="number" min="1" value="900"></label>
+          <label>收刀速度 (px/s) <input id="blade-return-speed" type="number" min="1" value="600"></label>
+          <button id="blade-preview" type="button">往返预览</button>
+        </div>
       <p id="timing-feedback" class="timing-feedback" aria-live="polite" aria-atomic="true"></p>
-      <p id="telegraph-indicator" class="telegraph-indicator" role="status" aria-live="polite">预读提示 · 先认清终结段的承诺，再进入弹反窗口</p>
-      <p id="window-indicator" class="window-indicator" aria-live="polite">判定窗 220ms</p>
+      <p id="telegraph-indicator" class="telegraph-indicator" role="status" aria-live="polite">预读提示 · 预读信号独立于空间弹反圈</p>
+      <p id="window-indicator" class="window-indicator" aria-live="polite">弹反圈 70px</p>
     </section>
 
     <section id="runtime-editor-bar" class="runtime-editor-bar hidden" aria-label="画布编辑工具">
       <div class="runtime-editor-bar__copy">
         <p id="runtime-editor-selection" class="runtime-editor-selection" role="status" aria-live="polite">画布编辑已开启</p>
-        <p id="runtime-editor-help" class="runtime-editor-help">直接在轨迹上操作：拖 P0–P3 改路径，拖 <strong>R</strong> 调玩家受击区，拖橙色 <strong>W</strong> 调内置弹反判定窗。</p>
+        <p id="runtime-editor-help" class="runtime-editor-help">直接在轨迹上操作：拖 P0–P3 改路径，拖 <strong>R</strong> 调玩家受击区，拖虚线圈边缘调弹反半径，拖青色轨迹端点调攻击范围，点选我方刀锋调速度。</p>
       </div>
       <section class="runtime-phase-editor" aria-labelledby="runtime-phase-title">
         <div class="runtime-phase-editor__heading">
@@ -85,16 +91,7 @@
           <select id="pattern-select"></select>
           <p id="pattern-description" class="pattern-description" role="status" aria-live="polite">长前摇后快速落点，练习在最后一瞬读节奏。</p>
         </div>
-        <div class="control-group control-group--timing">
-          <label for="window-select">弹反难度</label>
-          <select id="window-select">
-            <option value="pattern">招式内置判定窗</option>
-            <option value="220" selected>练习 · 220ms</option>
-            <option value="150">修罗 · 150ms</option>
-            <option value="90">苦难 · 90ms</option>
-          </select>
-          <p class="timing-editor-hint">进入画布编辑后，拖动橙色 <strong>W</strong> 手柄即可直接调整内置窗口。</p>
-        </div>
+        <div class="combat-guide"><p><span class="outbound" aria-hidden="true"></span><strong>出刀</strong> · 实心刀锋可以交锋</p><p><span class="recovery" aria-hidden="true"></span><strong>收刀</strong> · 空心刀锋无法防御</p><p>虚线圈内接触为弹反；圈外为普通拼刀，只挡伤害，不涨架势。</p></div>
       </div>
 
       <div class="toggle-group" aria-label="显示和声音选项">
@@ -132,7 +129,7 @@
       </header>
 
       <p class="editor-local-note"><strong>仅本地临时修改。</strong>不会上传或写回源码；刷新页面后会恢复本页初始配置。</p>
-      <p id="editor-canvas-help" class="editor-canvas-help">常用编辑直接在画布完成：点击曲线选段，拖 P0–P3 修改路径，拖 R 调整受击区，拖 W 调整内置弹反窗。下面仅保留命名、精确数值、缓动与段落管理等高级参数。</p>
+      <p id="editor-canvas-help" class="editor-canvas-help">常用编辑直接在画布完成：点击曲线选段，拖 P0–P3 修改路径，拖 R 调整受击区，拖虚线圈调弹反半径，拖青色端点调攻击范围。下面仅保留命名、精确数值、缓动与段落管理等高级参数。</p>
 
       <section class="editor-phase-section" aria-labelledby="editor-phase-title">
         <div class="editor-phase-section__heading">
@@ -247,7 +244,7 @@
         <div class="editor-hurtbox-section__heading">
           <div>
             <h3 id="editor-hurtbox-title">玩家受击区</h3>
-            <p>招式在终点结算时，若攻击终点落在此范围内，玩家受击；它不影响弹反判定窗。</p>
+            <p>招式在终点结算时，若攻击终点落在此范围内，玩家受击；弹反圈独立于受击圈。</p>
           </div>
           <output id="editor-hurtbox-value" class="editor-hurtbox-value" for="editor-hurtbox-radius editor-hurtbox-radius-number" aria-live="polite">半径 25px</output>
         </div>
@@ -259,31 +256,10 @@
             <input id="editor-hurtbox-radius-number" type="number" min="12" max="160" step="1" inputmode="numeric" value="25" aria-describedby="editor-hurtbox-help">
           </label>
         </div>
-        <p id="editor-hurtbox-help" class="editor-hurtbox-help">画布中的受击圆会即时缩放；也可拖动圆环边缘或带 <strong>R</strong> 的菱形手柄。它只决定攻击终点是否命中，不改变弹反窗口或橙金时间轨迹。</p>
+        <p id="editor-hurtbox-help" class="editor-hurtbox-help">画布中的受击圆会即时缩放；也可拖动圆环边缘或带 <strong>R</strong> 的菱形手柄。它只决定攻击终点是否命中，与弹反圈独立；弹反圈始终比受击圈大至少 10px。</p>
       </section>
 
-      <section id="editor-parry-window-section" class="editor-window-section" aria-labelledby="editor-parry-window-title" tabindex="-1">
-        <div class="editor-window-section__heading">
-          <div>
-            <h3 id="editor-parry-window-title">招式内置判定窗</h3>
-            <p>从攻击终点时刻向前倒数的完美弹反时长。画布中的橙金高亮会即时显示对应的实际轨迹范围，与玩家受击区无关。</p>
-          </div>
-          <output id="editor-parry-window-value" class="editor-window-value" for="editor-parry-window editor-parry-window-number" aria-live="polite">窗口 220ms</output>
-        </div>
-        <div class="editor-window-controls">
-          <label for="editor-parry-window">拖动调整时长
-            <input id="editor-parry-window" class="editor-window-range" type="range" min="30" max="1000" step="1" value="220" aria-describedby="editor-parry-window-help">
-          </label>
-          <label for="editor-parry-window-number">精确值（ms）
-            <input id="editor-parry-window-number" type="number" min="30" max="1000" step="1" inputmode="numeric" value="150" aria-describedby="editor-parry-window-help">
-          </label>
-        </div>
-        <div class="editor-window-runtime">
-          <p id="editor-parry-window-status" role="status" aria-live="polite"></p>
-          <button id="btn-editor-use-pattern-window" class="editor-window-apply-btn" type="button">使用此招式判定窗</button>
-        </div>
-        <p id="editor-parry-window-help" class="editor-window-help">上方“弹反难度”若选固定难度，会覆盖招式内置值；点击按钮即可立即让本招式的窗口参与当前练习。无论受击区半径如何调整，弹反窗口都保持不变。</p>
-      </section>
+
 
       <div class="editor-actions">
         <button id="btn-editor-delete-segment" class="editor-delete-btn" type="button">删除选中段</button>
@@ -300,6 +276,8 @@
 
   <script src="pattern-validation.js"></script>
   <script src="attack-patterns.js"></script>
+  <script src="combat-audio.js"></script>
+  <script src="player-blade.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

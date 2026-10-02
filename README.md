@@ -9,21 +9,21 @@ BladeTrace is a standalone browser practice sandbox and design tool for multi-se
 ## What it does
 
 - Moves an enemy blade cursor through configurable multi-segment cubic Bézier paths with per-segment easing and duration.
-- Opens a precision parry window near the terminal strike. The first-run default is a 220ms practice setting; pattern-defined, 150ms Shura, and 90ms hardship settings remain available.
+- Uses spatial blade contact: outbound contact inside the dashed circle parries; outside it clashes, blocking damage without changing posture. Hollow recovery cannot defend.
 - Resolves perfect deflects, player hits, enemy posture, and the deathblow flow; perfect deflects build posture rather than dealing enemy HP damage.
 - Includes 13 personality-led, multi-phase Bosses: three BladeTrace originals and 10 original mechanical homages spanning five action games. Each advances at posture thresholds and owns a distinct phase attack pool; homage Bosses borrow high-level combat lessons only, never characters or source assets.
 - Gives every Boss an original, procedural Canvas motif—such as bell ripples, clockwork spokes, mirror tides, lattice lines, or afterimages—so personality is visible without copying game art.
 - Includes 29 ordinary-attack presets, from delayed slashes, flurries, overhead attacks, spiral approaches, and deceptive pauses to 20 bespoke Boss signature attacks.
-- Validates every shipped pattern for segment continuity, duration, easing, parry-window and hurtbox ranges, plus the terminal hit-or-miss relationship; it also validates Boss inspirations, phase thresholds, phase posture-gain scales, IDs, colors, and attack-pool references.
+- Validates every shipped pattern for segment continuity, duration, easing, player-blade parameters and hurtbox ranges, plus the terminal hit-or-miss relationship; it also validates Boss inspirations, phase thresholds, phase posture-gain scales, IDs, colors, and attack-pool references.
 - Gives each preset a short practice description so players can choose a rhythm while developers can inspect the same underlying data.
-- Shows optional control handles, segment labels, cursor trails, synthesized Web Audio feedback, and automatic attack looping.
-- Includes a local, in-page canvas editor for the selected attack and Boss phase: select a phase card directly in the runtime view to preview its attack pool and accent color, or start a direct practice run from that phase; add or delete phases, then adjust their name, guidance, posture threshold, color, and attack pool in the optional advanced panel. Attack editing remains direct: drag P0–P3 control points, the red `R` hurtbox handle, or the orange `W` parry-window handle. Shared endpoints stay continuous and a refresh discards edits.
+- Shows optional control handles, segment labels, cursor trails, selected weapon recordings with remaining synthesized feedback, and automatic attack looping.
+- Includes a local, in-page canvas editor for the selected attack and Boss phase: select a phase card directly in the runtime view to preview its attack pool and accent color, or start a direct practice run from that phase; add or delete phases, then adjust their name, guidance, posture threshold, color, and attack pool in the optional advanced panel. Attack editing remains direct: drag P0–P3 control points, the red `R` hurtbox handle, the cyan reach endpoint, or the dashed parry circle; click the player blade to edit outbound/return speeds and preview. Shared endpoints stay continuous and a refresh discards edits.
 
 ## Run it
 
 No build step or web server is required. Open [app/index.html](app/index.html) in a current browser.
 
-The integrated prototype was smoke-tested locally in Microsoft Edge during this work. Other browsers have not been verified here.
+The earlier fused prototype was smoke-tested in Microsoft Edge. The latest spatial-parry and visual changes pass automated checks; their browser visual/play-feel acceptance remains pending.
 
 ## How to play
 
@@ -36,7 +36,9 @@ The integrated prototype was smoke-tested locally in Microsoft Edge during this 
 | `Space` or the deathblow button when posture breaks | Execute the deathblow |
 | Click `进入画布编辑` | Edit the selected attack directly on its runtime trajectory |
 
-Build enemy posture with perfect deflects, then execute the deathblow. At 50% and 75% posture, the active Boss moves to its next phase and switches attack pools; a player hit reduces player HP, resets posture, and returns the Boss to phase I. Later phases halve posture gain, so every phase normally receives at least two successful reads before the next threshold. A phase shift pauses briefly and announces its new beat before combat resumes. New sessions begin at the 220ms practice setting; 150ms is the Shura timing challenge and depends on reading the per-pattern commit cue before the window opens. Use the controls to choose a Boss, switch the current phase's patterns, timing windows, wireframe visibility, auto-looping, and sound. In canvas edit mode combat is paused: click a phase card to preview it or choose **Practice this phase** to start there; drag P0–P3 to edit its selected path, drag `R` to resize the fixed player hurtbox, or drag orange `W` along the path to change the built-in parry window. The advanced panel exposes phase threshold, color, text, and attack-pool edits. The hurtbox is fixed at the player position; only an attack endpoint inside it resolves as a hit, independently of the timeline-only parry window. See the [Boss mechanism homage catalog](docs/boss-mechanical-homages.md) and [human playtest protocol](docs/human-playtest-protocol.md) for the original-content boundary and deliberate human, rather than bot-speed, timing model.
+Build posture with perfect deflects, then execute the deathblow. Boss phases advance at posture thresholds; a player hit resets posture (or returns to the selected practice phase). The player blade follows a frozen reverse copy of the enemy path, with independent outbound and recovery speeds. Repeated inputs do not restart or queue swings. Damage still resolves only at the enemy attack endpoint.
+
+In the local canvas editor, drag control points, the hurtbox ring, the cyan attack-reach endpoint, or the dashed parry circle. Click the player blade to edit both speeds and preview the round trip. Defaults are 180px reach, 900px/s outbound, 600px/s return, and a parry radius of at least 70px and 10px larger than the hurtbox. Legacy millisecond windows are ignored. See [spatial-parry rules](docs/spatial-parry.md) for details.
 
 ## Development
 
@@ -46,11 +48,11 @@ From the repository root, the checked commands are:
 node --check app/pattern-validation.js
 node --check app/attack-patterns.js
 node --check app/game.js
-node --test tools/pattern-validation.test.cjs
+node --test tools/*.test.cjs
 node tools/verify-app.mjs
 ```
 
-The test command exercises the public pattern and Boss-phase validation seams with both valid and intentionally invalid fixtures. The final command checks the standalone entry point, required controls, validated shipped patterns and Bosses, accessibility markers, and the absence of remote runtime assets. A real-browser smoke test was also run for this integration, but no browser test harness is committed yet.
+The test command exercises the public pattern and Boss-phase validation seams with both valid and intentionally invalid fixtures. The final command checks the standalone entry point, required controls, validated shipped patterns and Bosses, accessibility markers, and the absence of remote runtime assets. The latest runtime tests use a simulated DOM/Canvas environment, not a real-browser visual test.
 
 ## Repository layout
 

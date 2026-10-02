@@ -1,4 +1,5 @@
 node_modules/
 .codex/project-git-workflow.json
+tmp/
 *.log
 Thumbs.db

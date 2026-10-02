@@ -19,7 +19,7 @@ const PLAYER_POSITION = ATTACK_PATTERN_DATA.PLAYER_POSITION;
 const BOSS_LIBRARY = ATTACK_PATTERN_DATA.BOSS_LIBRARY;
 const MAX_VALUE = 100;
 const PLAYER_HURTBOX_DEFAULT_RADIUS = PATTERN_VALIDATION.DEFAULTS.playerHurtboxRadius;
-const PARRY_WINDOW_DEFAULT_MS = PATTERN_VALIDATION.DEFAULTS.parryWindowMs;
+const PLAYER_BLADE = window.BladeTracePlayerBlade;
 
 const EASINGS = Object.freeze({
   linear: function (t) { return t; },
@@ -53,6 +53,7 @@ class AudioEngine {
   constructor() {
     this.context = null;
     this.enabled = true;
+    this.samples = new window.BladeTraceCombatSamples();
     this.isSupported = Boolean(window.AudioContext || window.webkitAudioContext);
   }
 
@@ -75,12 +76,19 @@ class AudioEngine {
   }
 
   playDeflect() {
-    const context = this.getContext();
-    if (!context) return;
+    if (this.enabled) this.samples.play("combat.parry-success");
+  }
 
-    const now = context.currentTime;
-    this.playOscillator(context, "triangle", 1400, 380, 0.8, 0.2, now);
-    this.playOscillator(context, "sine", 2800, 1600, 0.35, 0.38, now);
+  playAttackStart() {
+    if (this.enabled) this.samples.play("combat.attack-start");
+  }
+
+  playBladeClash() {
+    if (this.enabled) this.samples.play("combat.blade-clash");
+  }
+
+  stopSamples() {
+    this.samples.stop();
   }
 
   playHit() {
@@ -175,8 +183,6 @@ const ATTACK_PATTERNS = ATTACK_PATTERN_DATA.ATTACK_PATTERNS;
 const EDITOR_MIN_DURATION_MS = PATTERN_VALIDATION.CONSTRAINTS.minSegmentDurationMs;
 const EDITOR_MIN_PLAYER_HURTBOX_RADIUS = PATTERN_VALIDATION.CONSTRAINTS.minPlayerHurtboxRadius;
 const EDITOR_MAX_PLAYER_HURTBOX_RADIUS = PATTERN_VALIDATION.CONSTRAINTS.maxPlayerHurtboxRadius;
-const EDITOR_MIN_PARRY_WINDOW_MS = PATTERN_VALIDATION.CONSTRAINTS.minParryWindowMs;
-const EDITOR_MAX_PARRY_WINDOW_MS = PATTERN_VALIDATION.CONSTRAINTS.maxParryWindowMs;
 const EASING_NAMES = PATTERN_VALIDATION.EASING_NAMES;
 
 function normalizePlayerHurtboxRadius(radius) {
@@ -185,11 +191,6 @@ function normalizePlayerHurtboxRadius(radius) {
   return clamp(Math.round(nextRadius), EDITOR_MIN_PLAYER_HURTBOX_RADIUS, EDITOR_MAX_PLAYER_HURTBOX_RADIUS);
 }
 
-function normalizeParryWindowMs(windowMs) {
-  const numericWindowMs = Number(windowMs);
-  const nextWindowMs = Number.isFinite(numericWindowMs) ? numericWindowMs : PARRY_WINDOW_DEFAULT_MS;
-  return clamp(Math.round(nextWindowMs), EDITOR_MIN_PARRY_WINDOW_MS, EDITOR_MAX_PARRY_WINDOW_MS);
-}
 
 function clonePoint(point) {
   return { x: point.x, y: point.y };
@@ -212,7 +213,10 @@ function clonePattern(pattern) {
     name: pattern.name,
     description: pattern.description,
     kind: pattern.kind,
-    parryWindowMs: normalizeParryWindowMs(pattern.parryWindowMs),
+    playerAttackReach: PLAYER_BLADE.config(pattern).reach,
+    playerOutSpeed: PLAYER_BLADE.config(pattern).outSpeed,
+    playerReturnSpeed: PLAYER_BLADE.config(pattern).returnSpeed,
+    parryRadius: PLAYER_BLADE.config(pattern, normalizePlayerHurtboxRadius(pattern.playerHurtboxRadius)).parryRadius,
     damage: pattern.damage,
     postureGain: pattern.postureGain,
     playerHurtboxRadius: normalizePlayerHurtboxRadius(pattern.playerHurtboxRadius),
@@ -321,6 +325,7 @@ class GameEngine {
     this.canvas = document.getElementById("gameCanvas");
     this.context = this.canvas.getContext("2d");
     this.audio = new AudioEngine();
+    this.playerBlade = new PLAYER_BLADE.Action();
     this.particles = new ParticleSystem();
 
     this.state = COMBAT_STATE.IDLE;
@@ -368,6 +373,19 @@ class GameEngine {
   }
 
   initDom() {
+    this.bladeEditor=document.getElementById("blade-editor");
+    this.bladeOutInput=document.getElementById("blade-out-speed");
+    this.bladeReturnInput=document.getElementById("blade-return-speed");
+    const change=()=>{
+      this.currentPattern.playerOutSpeed=Math.max(1,Number(this.bladeOutInput.value)||900);
+      this.currentPattern.playerReturnSpeed=Math.max(1,Number(this.bladeReturnInput.value)||600);
+      this.playerBlade.reset();
+    };
+    this.bladeOutInput.addEventListener("change",change);
+    this.bladeReturnInput.addEventListener("change",change);
+    document.getElementById("blade-preview").addEventListener("click",()=>{
+      if(this.isEditorMode)this.playerBlade.start(this.getBladePath(),this.getBladeSettings(),performance.now());
+    });
     this.gameContainer = document.getElementById("game-container");
     this.enemyPostureBar = document.getElementById("enemy-posture-bar");
     this.enemyPostureText = document.getElementById("enemy-posture-text");
@@ -388,7 +406,6 @@ class GameEngine {
     this.bossSelectDescription = document.getElementById("boss-select-description");
     this.patternSelect = document.getElementById("pattern-select");
     this.patternDescription = document.getElementById("pattern-description");
-    this.windowSelect = document.getElementById("window-select");
     this.showWireframe = document.getElementById("show-wireframe");
     this.autoLoop = document.getElementById("auto-loop");
     this.soundToggle = document.getElementById("sound-toggle");
@@ -427,11 +444,6 @@ class GameEngine {
     this.editorHurtboxRadiusRange = document.getElementById("editor-hurtbox-radius");
     this.editorHurtboxRadiusInput = document.getElementById("editor-hurtbox-radius-number");
     this.editorHurtboxValue = document.getElementById("editor-hurtbox-value");
-    this.editorParryWindowRange = document.getElementById("editor-parry-window");
-    this.editorParryWindowInput = document.getElementById("editor-parry-window-number");
-    this.editorParryWindowValue = document.getElementById("editor-parry-window-value");
-    this.editorParryWindowStatus = document.getElementById("editor-parry-window-status");
-    this.editorApplyPatternWindowButton = document.getElementById("btn-editor-use-pattern-window");
     this.editorAddSegmentButton = document.getElementById("btn-editor-add-segment");
     this.editorDeleteSegmentButton = document.getElementById("btn-editor-delete-segment");
     this.editorResetPatternButton = document.getElementById("btn-editor-reset-pattern");
@@ -447,7 +459,6 @@ class GameEngine {
 
     this.bossSelect.addEventListener("change", this.handleBossChange.bind(this));
     this.patternSelect.addEventListener("change", this.handlePatternChange.bind(this));
-    this.windowSelect.addEventListener("change", this.handleWindowChange.bind(this));
     this.soundToggle.addEventListener("change", this.handleSoundChange.bind(this));
     this.editorEntryButton.addEventListener("click", this.toggleEditorMode.bind(this));
     this.runtimePhaseList.addEventListener("click", this.handlePhaseSelection.bind(this));
@@ -476,9 +487,6 @@ class GameEngine {
     }.bind(this));
     this.editorHurtboxRadiusRange.addEventListener("input", this.handlePlayerHurtboxRadiusInput.bind(this));
     this.editorHurtboxRadiusInput.addEventListener("change", this.handlePlayerHurtboxRadiusInput.bind(this));
-    this.editorParryWindowRange.addEventListener("input", this.handleParryWindowInput.bind(this));
-    this.editorParryWindowInput.addEventListener("change", this.handleParryWindowInput.bind(this));
-    this.editorApplyPatternWindowButton.addEventListener("click", this.applyPatternParryWindow.bind(this));
     this.editorAddSegmentButton.addEventListener("click", this.addSegmentAfterSelection.bind(this));
     this.editorDeleteSegmentButton.addEventListener("click", this.deleteSelectedSegment.bind(this));
     this.editorResetPatternButton.addEventListener("click", this.resetCurrentPatternEdits.bind(this));
@@ -630,15 +638,12 @@ class GameEngine {
 
   handleSoundChange(event) {
     this.audio.enabled = event.target.checked;
+    if (!this.audio.enabled) this.audio.stopSamples();
     this.setStatus(event.target.checked ? "音效已开启" : "音效已关闭", "neutral");
   }
 
-  handleWindowChange() {
-    this.updateWindowIndicator();
-    if (this.isEditorMode) this.updateEditorParryWindowStatus();
-  }
-
   toggleEditorMode() {
+    this.playerBlade.reset();
     if (this.isEditorMode) {
       this.exitEditorMode();
     } else {
@@ -665,6 +670,8 @@ class GameEngine {
   }
 
   enterEditorMode() {
+    this.playerBlade.reset();
+    this.clearAutoStart();
     if (this.state !== COMBAT_STATE.IDLE) this.resetCombat(false);
 
     this.isEditorMode = true;
@@ -679,12 +686,12 @@ class GameEngine {
     this.runtimeEditorAdvancedButton.setAttribute("aria-expanded", "false");
     this.runtimeEditorAdvancedButton.textContent = "更多参数";
     this.canvas.classList.add("is-editing");
-    this.canvas.setAttribute("aria-label", "画布编辑。可点击曲线选择段落，拖动 P0 到 P3 控制点修改路径，拖动玩家受击圆环调整半径，拖动橙色 W 手柄调整内置弹反判定窗。");
+    this.canvas.setAttribute("aria-label", "画布编辑。可点击曲线选择段落，拖动 P0 到 P3 控制点修改路径，拖动玩家受击圆环调整半径，拖动虚线圈边缘调整弹反半径，拖动青色端点调整攻击范围。");
     this.canvas.setAttribute("aria-describedby", "runtime-editor-help");
     this.updateBossPresentation();
     this.renderEditor();
     this.updateControls();
-    this.setStatus("画布编辑已开启 · 拖橙色 W 手柄直接调整弹反窗", "warning");
+    this.setStatus("画布编辑已开启 · 拖虚线圈调弹反半径，点选我方刀锋调速度", "warning");
     this.showFeedback("CANVAS EDITOR", "neutral");
   }
 
@@ -697,6 +704,8 @@ class GameEngine {
   }
 
   leaveEditorModeUi() {
+    this.playerBlade.reset();
+    this.bladeEditor.hidden=true;
     this.draggedControl = null;
     this.isEditorMode = false;
     this.selectedPhaseIndex = this.currentPhaseIndex;
@@ -780,7 +789,6 @@ class GameEngine {
       input.value = String(Math.round(point[input.dataset.editorAxis]));
     });
     this.syncPlayerHurtboxRadiusInputs();
-    this.syncParryWindowInputs();
   }
 
   updateRuntimeEditorBar() {
@@ -793,7 +801,7 @@ class GameEngine {
       ? (validation.warnings.length > 0 ? " · 终点落空" : " · 配置有效")
       : " · 配置待修正";
     const bossLabel = bossValidation.isValid ? "阶段有效" : "阶段待修正";
-    this.runtimeEditorSelection.textContent = "画布编辑 · " + this.currentBoss.name + " · " + this.getSelectedBossPhase().name + " · 第 " + (this.selectedSegmentIndex + 1) + "/" + this.currentPattern.segments.length + " 段 · " + segment.label + " · 弹反窗 " + this.currentPattern.parryWindowMs + "ms · " + bossLabel + validationLabel;
+    this.runtimeEditorSelection.textContent = "画布编辑 · " + this.currentBoss.name + " · " + this.getSelectedBossPhase().name + " · 第 " + (this.selectedSegmentIndex + 1) + "/" + this.currentPattern.segments.length + " 段 · " + segment.label +  " · 弹反圈 " + this.getBladeSettings().parryRadius + "px · " + bossLabel + validationLabel;
     this.runtimeEditorSplitButton.disabled = !segment;
     this.runtimeEditorDeleteButton.disabled = this.currentPattern.segments.length <= 1;
   }
@@ -922,6 +930,8 @@ class GameEngine {
   }
 
   selectBossPhase(index) {
+    this.playerBlade.reset();
+    this.bladeEditor.hidden = true;
     if (!this.isEditorMode || !Number.isInteger(index) || index < 0 || index >= this.currentBoss.phases.length) return;
     this.selectedPhaseIndex = index;
     this.ensurePatternForPhase(this.getSelectedBossPhase());
@@ -1188,25 +1198,6 @@ class GameEngine {
     this.syncPlayerHurtboxRadiusInputs();
   }
 
-  handleParryWindowInput(event) {
-    if (event.target.value === "") return;
-
-    const windowMs = Number(event.target.value);
-    if (!Number.isFinite(windowMs)) return;
-
-    this.setPatternParryWindow(windowMs);
-    this.syncParryWindowInputs();
-    this.updateWindowIndicator();
-  }
-
-  applyPatternParryWindow() {
-    this.windowSelect.value = "pattern";
-    this.updateWindowIndicator();
-    this.updateEditorParryWindowStatus();
-    this.setStatus("当前练习已启用招式内置判定窗 · " + this.currentPattern.parryWindowMs + "ms", "success");
-    this.showFeedback("PATTERN WINDOW ENABLED", "success");
-  }
-
   syncPatternOptionLabel() {
     const option = this.patternSelect.querySelector("option[value='" + this.currentPatternKey + "']");
     if (option) option.textContent = this.currentPattern.name;
@@ -1229,38 +1220,13 @@ class GameEngine {
 
   setPlayerHurtboxRadius(radius) {
     this.currentPattern.playerHurtboxRadius = normalizePlayerHurtboxRadius(radius);
-    this.updateRuntimeEditorBar();
-  }
-
-  syncParryWindowInputs() {
-    const windowMs = normalizeParryWindowMs(this.currentPattern.parryWindowMs);
-    this.editorParryWindowRange.value = String(windowMs);
-    this.editorParryWindowInput.value = String(windowMs);
-    this.editorParryWindowValue.textContent = "窗口 " + windowMs + "ms";
-    this.updateEditorParryWindowStatus();
-  }
-
-  updateEditorParryWindowStatus() {
-    const effectiveWindowMs = this.getParryWindowMs();
-    if (this.windowSelect.value === "pattern") {
-      this.editorParryWindowStatus.textContent = "当前练习使用此招式内置值 · " + effectiveWindowMs + "ms";
-      this.editorApplyPatternWindowButton.disabled = true;
-      this.editorApplyPatternWindowButton.textContent = "当前已使用内置判定窗";
-      return;
-    }
-
-    const selectedOption = this.windowSelect.options[this.windowSelect.selectedIndex];
-    this.editorParryWindowStatus.textContent = "当前练习由「" + selectedOption.textContent + "」覆盖 · " + effectiveWindowMs + "ms";
-    this.editorApplyPatternWindowButton.disabled = false;
-    this.editorApplyPatternWindowButton.textContent = "使用此招式判定窗";
-  }
-
-  setPatternParryWindow(windowMs) {
-    this.currentPattern.parryWindowMs = normalizeParryWindowMs(windowMs);
+    this.currentPattern.parryRadius = this.getBladeSettings().parryRadius;
+    this.playerBlade.reset();
     this.updateRuntimeEditorBar();
   }
 
   setSegmentPoint(segmentIndex, pointKey, point) {
+    this.playerBlade.reset();
     const segment = this.currentPattern.segments[segmentIndex];
     if (!segment || !segment[pointKey]) return;
 
@@ -1335,14 +1301,22 @@ class GameEngine {
 
     event.preventDefault();
     const point = this.getCanvasPoint(event);
-    if (this.findParryWindowResizeHandle(point)) {
-      this.draggedControl = { kind: "parry-window", pointerId: event.pointerId };
+    const path = this.getBladePath(), settings = this.getBladeSettings();
+    const bladePoint = this.playerBlade.path ? this.playerBlade.position(performance.now()) : PLAYER_POSITION;
+    if (Math.hypot(point.x-bladePoint.x,point.y-bladePoint.y)<16) {
+      this.bladeEditor.hidden = false;
+      this.bladeOutInput.value = settings.outSpeed;
+      this.bladeReturnInput.value = settings.returnSpeed;
+      return;
+    }
+    this.bladeEditor.hidden = true;
+    const reachPoint = PLAYER_BLADE.at(path,settings.reach);
+    const kind = Math.hypot(point.x-reachPoint.x,point.y-reachPoint.y)<14 ? "blade-reach"
+      : Math.abs(Math.hypot(point.x-PLAYER_POSITION.x,point.y-PLAYER_POSITION.y)-settings.parryRadius)<6 ? "parry-radius" : null;
+    if(kind) {
+      this.playerBlade.reset();
+      this.draggedControl={kind,pointerId:event.pointerId};
       this.canvas.setPointerCapture(event.pointerId);
-      this.canvas.classList.add("is-dragging");
-      this.windowSelect.value = "pattern";
-      this.updateWindowIndicator();
-      this.updateEditorParryWindowStatus();
-      this.setStatus("正在调整内置弹反窗 · 拖动橙色 W 手柄", "warning");
       return;
     }
 
@@ -1372,9 +1346,18 @@ class GameEngine {
 
     event.preventDefault();
     const point = this.getCanvasPoint(event);
-    if (this.draggedControl.kind === "parry-window") {
-      this.setParryWindowFromCanvasPoint(point);
-      this.setStatus("正在调整内置弹反窗 · " + this.currentPattern.parryWindowMs + "ms", "warning");
+    if (this.draggedControl.kind === "blade-reach") {
+      const path=this.getBladePath();
+      let best=Infinity, distance=0;
+      for(const sample of path.points) {
+        const d=Math.hypot(point.x-sample.x,point.y-sample.y);
+        if(d<best){best=d;distance=sample.distance;}
+      }
+      this.currentPattern.playerAttackReach=Math.max(1,distance);
+      this.updateRuntimeEditorBar();
+    } else if(this.draggedControl.kind === "parry-radius") {
+      this.currentPattern.parryRadius=Math.max(this.getPlayerHurtbox().radius+10,Math.hypot(point.x-PLAYER_POSITION.x,point.y-PLAYER_POSITION.y));
+      this.updateRuntimeEditorBar();
     } else if (this.draggedControl.kind === "player-hurtbox-radius") {
       const hurtbox = this.getPlayerHurtbox();
       this.setPlayerHurtboxRadius(Math.hypot(point.x - hurtbox.center.x, point.y - hurtbox.center.y));
@@ -1461,7 +1444,8 @@ class GameEngine {
   }
 
   handleKeyDown(event) {
-    if (event.repeat) return;
+    if (event.repeat) { event.preventDefault(); return; }
+    if (/INPUT|SELECT|TEXTAREA/.test(event.target?.tagName || "")) return;
 
     if (this.isEditorMode) {
       if (event.key === "Escape") {
@@ -1487,12 +1471,6 @@ class GameEngine {
     }
   }
 
-  getParryWindowMs() {
-    return this.windowSelect.value === "pattern"
-      ? normalizeParryWindowMs(this.currentPattern.parryWindowMs)
-      : Number(this.windowSelect.value);
-  }
-
   getPatternStartPoint() {
     return this.currentPattern.segments[0].p0;
   }
@@ -1507,92 +1485,6 @@ class GameEngine {
       center: PLAYER_POSITION,
       radius: normalizePlayerHurtboxRadius(this.currentPattern.playerHurtboxRadius)
     };
-  }
-
-  getParryWindowPreview() {
-    const totalDurationMs = this.calculateTotalDuration();
-    const parryWindowMs = normalizeParryWindowMs(this.currentPattern.parryWindowMs);
-    const previewDurationMs = Math.min(parryWindowMs, totalDurationMs);
-    const previewStartMs = Math.max(0, totalDurationMs - previewDurationMs);
-
-    return {
-      totalDurationMs: totalDurationMs,
-      parryWindowMs: parryWindowMs,
-      previewDurationMs: previewDurationMs,
-      previewStartMs: previewStartMs,
-      previewStart: this.evaluateTrajectory(previewStartMs).position
-    };
-  }
-
-  getParryWindowResizeHandle() {
-    const preview = this.getParryWindowPreview();
-    const lookAheadMs = Math.min(preview.totalDurationMs, preview.previewStartMs + Math.max(16, Math.min(72, preview.previewDurationMs)));
-    const lookAhead = this.evaluateTrajectory(lookAheadMs).position;
-    let deltaX = lookAhead.x - preview.previewStart.x;
-    let deltaY = lookAhead.y - preview.previewStart.y;
-    let magnitude = Math.hypot(deltaX, deltaY);
-
-    if (magnitude < 0.1) {
-      const endPoint = this.getPatternEndPoint();
-      deltaX = endPoint.x - preview.previewStart.x;
-      deltaY = endPoint.y - preview.previewStart.y;
-      magnitude = Math.hypot(deltaX, deltaY) || 1;
-    }
-
-    const offset = 34;
-    const candidates = [
-      { x: preview.previewStart.x - deltaY / magnitude * offset, y: preview.previewStart.y + deltaX / magnitude * offset },
-      { x: preview.previewStart.x + deltaY / magnitude * offset, y: preview.previewStart.y - deltaX / magnitude * offset }
-    ];
-    const handle = candidates.find(function (candidate) {
-      return candidate.x >= 14 && candidate.x <= this.canvas.width - 14 && candidate.y >= 14 && candidate.y <= this.canvas.height - 14;
-    }.bind(this)) || candidates[0];
-
-    return {
-      x: handle.x,
-      y: handle.y,
-      anchor: preview.previewStart,
-      parryWindowMs: preview.parryWindowMs
-    };
-  }
-
-  findParryWindowResizeHandle(point) {
-    const resizeHandle = this.getParryWindowResizeHandle();
-    return Math.hypot(point.x - resizeHandle.x, point.y - resizeHandle.y) <= 18;
-  }
-
-  findClosestTrajectoryElapsedMs(point) {
-    let closestElapsedMs = 0;
-    let closestDistanceSquared = Number.POSITIVE_INFINITY;
-    let accumulatedMs = 0;
-
-    this.currentPattern.segments.forEach(function (segment) {
-      const sampleCount = 80;
-      for (let sampleIndex = 0; sampleIndex <= sampleCount; sampleIndex += 1) {
-        const elapsedMs = accumulatedMs + segment.durationMs * sampleIndex / sampleCount;
-        const sample = this.evaluateTrajectory(elapsedMs).position;
-        const deltaX = sample.x - point.x;
-        const deltaY = sample.y - point.y;
-        const distanceSquared = deltaX * deltaX + deltaY * deltaY;
-        if (distanceSquared < closestDistanceSquared) {
-          closestDistanceSquared = distanceSquared;
-          closestElapsedMs = elapsedMs;
-        }
-      }
-      accumulatedMs += segment.durationMs;
-    }.bind(this));
-
-    return closestElapsedMs;
-  }
-
-  setParryWindowFromCanvasPoint(point) {
-    const totalDurationMs = this.calculateTotalDuration();
-    const closestElapsedMs = this.findClosestTrajectoryElapsedMs(point);
-    this.windowSelect.value = "pattern";
-    this.setPatternParryWindow(totalDurationMs - closestElapsedMs);
-    this.syncParryWindowInputs();
-    this.updateWindowIndicator();
-    this.updateRuntimeEditorBar();
   }
 
   isInsidePlayerHurtbox(position) {
@@ -1613,6 +1505,7 @@ class GameEngine {
 
     this.clearAutoStart();
     this.state = COMBAT_STATE.ATTACKING;
+    this.audio.playAttackStart();
     this.startTime = performance.now();
     this.elapsedMs = 0;
     this.totalDurationMs = this.calculateTotalDuration();
@@ -1627,28 +1520,14 @@ class GameEngine {
 
   handleParryInput() {
     if (this.isEditorMode) return;
-
-    if (this.state === COMBAT_STATE.DEATHBLOW) {
-      this.executeDeathblow();
-      return;
-    }
-
+    const now=performance.now();
+    if(this.state===COMBAT_STATE.ATTACKING)this.advanceAttack(now,true);
+    this.playerBlade.advance(now);
+    if (this.playerBlade.state !== "idle") return;
+    if (this.state === COMBAT_STATE.DEATHBLOW) { this.executeDeathblow(); return; }
     if (this.state !== COMBAT_STATE.ATTACKING) return;
-
-    this.advanceAttack(performance.now(), false);
-    if (this.state !== COMBAT_STATE.ATTACKING) return;
-
-    const remainingMs = this.totalDurationMs - this.elapsedMs;
-    const parryWindowMs = this.getParryWindowMs();
-    if (remainingMs >= 0 && remainingMs <= parryWindowMs) {
-      this.triggerParrySuccess();
-    } else if (remainingMs < 0) {
-      this.resolveAttackImpact();
-    } else {
-      this.screenShake = Math.max(this.screenShake, 5);
-      this.showFeedback("TOO EARLY · 时机过早", "danger");
-      this.setStatus("弹反过早 · 等待招式进入弹反窗口", "danger");
-    }
+    this.playerBlade.start(this.getBladePath(),this.getBladeSettings(),now);
+    this.updateControls();
   }
 
   triggerParrySuccess() {
@@ -1758,7 +1637,7 @@ class GameEngine {
       const phase = this.getCombatPhase();
       this.beginPhaseTransition(phase);
     } else {
-      this.setStatus("弹反成功 · 可继续观察下一招", "success");
+      this.setStatus("交锋结束 · 可继续观察下一招", "neutral");
     }
     this.updateControls();
     this.updateWindowIndicator();
@@ -1816,6 +1695,9 @@ class GameEngine {
   }
 
   resetCombat(announce) {
+    this.playerBlade.reset();
+    if(this.bladeEditor)this.bladeEditor.hidden=true;
+    this.audio.stopSamples();
     this.clearAutoStart();
     this.clearPhaseTransition();
     this.state = COMBAT_STATE.IDLE;
@@ -1895,14 +1777,69 @@ class GameEngine {
   }
 
   advanceAttack(timestamp, resolveHit) {
-    this.elapsedMs = Math.max(0, timestamp - this.startTime);
-    const trajectory = this.evaluateTrajectory(Math.min(this.elapsedMs, this.totalDurationMs));
-    this.cursorPos = trajectory.position;
-    this.currentSegmentIndex = trajectory.segmentIndex;
-    this.cursorTrail.push({ x: this.cursorPos.x, y: this.cursorPos.y });
-    if (this.cursorTrail.length > 20) this.cursorTrail.shift();
+    const end=Math.min(timestamp,this.startTime+this.totalDurationMs);
+    let time=this.startTime+this.elapsedMs;
+    const blade=this.playerBlade;
+    // Bound both blades' displacement to 2px per sweep, even at edited high speeds.
+    // Cubic derivative <= 3 * longest control edge; every supported easing slope <= 8.
+    const enemySpeedBound=Math.max(...this.currentPattern.segments.map(s=>
+      24*Math.max(Math.hypot(s.p1.x-s.p0.x,s.p1.y-s.p0.y),Math.hypot(s.p2.x-s.p1.x,s.p2.y-s.p1.y),Math.hypot(s.p3.x-s.p2.x,s.p3.y-s.p2.y))/s.durationMs));
+    while(time<end && this.state===COMBAT_STATE.ATTACKING) {
+      blade.advance(time);
+      const step=blade.state==="outbound"?Math.max(Number.EPSILON*Math.max(1,Math.abs(time))*2,Math.min(1,2/(enemySpeedBound+blade.settings.outSpeed/1000))):1;
+      const next=Math.min(end,time+step,blade.state==="outbound"?blade.endTime:Infinity);
+      const enemyA=this.evaluateTrajectory(time-this.startTime).position;
+      const enemyB=this.evaluateTrajectory(next-this.startTime).position;
+      if(blade.state==="outbound" && time>=blade.startTime) {
+        const playerA=blade.position(time),playerB=blade.position(next);
+        const fraction=PLAYER_BLADE.sweep(playerA,playerB,enemyA,enemyB);
+        if(fraction!==null) {
+          const contactTime=time+(next-time)*fraction;
+          const enemy=interpolatePoint(enemyA,enemyB,fraction);
+          const player=interpolatePoint(playerA,playerB,fraction);
+          const contact=interpolatePoint(enemy,player,0.5);
+          this.cursorPos=enemy;
+          this.elapsedMs=contactTime-this.startTime;
+          blade.returnAt(contactTime);
+          if(Math.hypot(contact.x-PLAYER_POSITION.x,contact.y-PLAYER_POSITION.y)<=blade.settings.parryRadius+1e-7) this.triggerParrySuccess();
+          else this.triggerBladeClash();
+          this.bounce.startTime=contactTime;
+          break;
+        }
+      }
+      time=next;
+      this.elapsedMs=time-this.startTime;
+      this.cursorPos=enemyB;
+      this.currentSegmentIndex=this.evaluateTrajectory(this.elapsedMs).segmentIndex;
+    }
+    this.cursorTrail.push({...this.cursorPos});
+    if(this.cursorTrail.length>20)this.cursorTrail.shift();
+    if(resolveHit && this.state===COMBAT_STATE.ATTACKING && end>=this.startTime+this.totalDurationMs)this.resolveAttackImpact();
+    blade.advance(timestamp);
+  }
 
-    if (resolveHit && this.elapsedMs >= this.totalDurationMs) this.resolveAttackImpact();
+  triggerBladeClash() {
+    if(this.state!==COMBAT_STATE.ATTACKING)return;
+    this.state=COMBAT_STATE.PARRY_BOUNCE;
+    this.pendingPhaseIndex=null;
+    this.audio.playBladeClash();
+    this.particles.spawnSparks(this.cursorPos.x,this.cursorPos.y,20);
+    this.showFeedback("BLADE CLASH · 普通拼刀","neutral");
+    this.setStatus("普通拼刀 · 抵挡伤害，架势不变","neutral");
+    const start=this.getPatternStartPoint();
+    this.bounce={startX:this.cursorPos.x,startY:this.cursorPos.y,endX:start.x,endY:start.y,startTime:performance.now(),durationMs:250};
+    this.updateControls();
+  }
+
+  getBladeSettings() {
+    const settings=PLAYER_BLADE.config(this.currentPattern,this.getPlayerHurtbox().radius);
+    return settings;
+  }
+
+  getBladePath() {
+    const key=JSON.stringify(this.currentPattern.segments.map(s=>[s.p0,s.p1,s.p2,s.p3]));
+    if(this.bladePathKey!==key){this.bladePathKey=key;this.bladePathCache=PLAYER_BLADE.path(this.currentPattern,PLAYER_POSITION);}
+    return this.bladePathCache;
   }
 
   updateHud() {
@@ -1917,12 +1854,12 @@ class GameEngine {
   updateControls() {
     const isIdle = this.state === COMBAT_STATE.IDLE && !this.isPhaseTransitioning;
     const canUseEditor = isIdle || this.isEditorMode;
-    const canParry = !this.isEditorMode && (this.state === COMBAT_STATE.ATTACKING || this.state === COMBAT_STATE.DEATHBLOW);
+    const canParry = this.playerBlade.state === "idle" && !this.isEditorMode && (this.state === COMBAT_STATE.ATTACKING || this.state === COMBAT_STATE.DEATHBLOW);
     this.attackButton.disabled = !isIdle || this.isEditorMode;
     this.parryButton.disabled = !canParry;
+    this.parryButton.textContent=this.playerBlade.state==="outbound"?"出刀阶段":this.playerBlade.state==="return"?"收刀后摇":"挥刀 / 弹反";
     this.bossSelect.disabled = !isIdle;
     this.patternSelect.disabled = !isIdle;
-    this.windowSelect.disabled = !isIdle || this.isEditorMode;
     this.autoLoop.disabled = this.isEditorMode;
     this.editorEntryButton.disabled = !canUseEditor;
     this.runtimeEditorSplitButton.disabled = !this.isEditorMode;
@@ -1935,37 +1872,25 @@ class GameEngine {
   }
 
   getCommitCueLeadMs() {
-    const patternLead = Number(this.currentPattern.commitCueLeadMs);
-    const requestedLead = Number.isFinite(patternLead) ? patternLead : 400;
-    const parryWindowMs = this.getParryWindowMs();
-    const totalDurationMs = this.totalDurationMs || this.calculateTotalDuration();
-    return clamp(Math.round(requestedLead), parryWindowMs + 20, Math.max(parryWindowMs + 20, totalDurationMs));
+    return clamp(Number(this.currentPattern.commitCueLeadMs)||400,1,this.totalDurationMs||this.calculateTotalDuration());
   }
 
   getCommitCueLabel() {
     return this.currentPattern.commitCueLabel || "终结段承诺";
   }
 
-  isCommitCueActive(remainingMs, parryWindowMs) {
-    const remaining = Number.isFinite(remainingMs) ? remainingMs : this.totalDurationMs - this.elapsedMs;
-    const windowMs = Number.isFinite(parryWindowMs) ? parryWindowMs : this.getParryWindowMs();
-    return this.state === COMBAT_STATE.ATTACKING && remaining > windowMs && remaining <= this.getCommitCueLeadMs();
+  isCommitCueActive(remainingMs) {
+    const remaining=Number.isFinite(remainingMs)?remainingMs:this.totalDurationMs-this.elapsedMs;
+    return this.state===COMBAT_STATE.ATTACKING && remaining>0 && remaining<=this.getCommitCueLeadMs();
   }
 
   updateWindowIndicator() {
-    const parryWindowMs = this.getParryWindowMs();
-    const remainingMs = this.totalDurationMs - this.elapsedMs;
-    const isActive = this.state === COMBAT_STATE.ATTACKING && remainingMs >= 0 && remainingMs <= parryWindowMs;
-    const isCommitCue = this.isCommitCueActive(remainingMs, parryWindowMs);
-    const nextText = isActive
-      ? "弹反窗口开启 · " + parryWindowMs + "ms"
-      : (isCommitCue ? "预读信号 · " + this.getCommitCueLabel() : "判定窗 " + parryWindowMs + "ms");
-    if (this.windowIndicator.textContent !== nextText) this.windowIndicator.textContent = nextText;
-    this.windowIndicator.dataset.active = isActive ? "true" : "false";
-    this.telegraphIndicator.textContent = isCommitCue
-      ? "预读信号已出现 · " + this.getCommitCueLabel() + " · 等待终结段"
-      : "预读提示 · 先认清终结段的承诺，再进入弹反窗口";
-    this.telegraphIndicator.dataset.active = isCommitCue ? "true" : "false";
+    const active=this.playerBlade.state==="outbound";
+    this.windowIndicator.textContent="弹反圈 "+Math.round(this.getBladeSettings().parryRadius)+"px · "+(active?"出刀阶段":this.playerBlade.state==="return"?"收刀后摇":"可出刀");
+    this.windowIndicator.dataset.active=String(active);
+    const cue=this.isCommitCueActive();
+    this.telegraphIndicator.textContent=cue?"预读信号 · "+this.getCommitCueLabel():"预读提示独立于空间弹反圈";
+    this.telegraphIndicator.dataset.active=String(cue);
   }
 
   setStatus(text, tone) {
@@ -1990,6 +1915,8 @@ class GameEngine {
     if (this.state === COMBAT_STATE.ATTACKING) this.advanceAttack(timestamp, true);
     if (this.state === COMBAT_STATE.PARRY_BOUNCE) this.updateBounce(timestamp);
 
+    this.playerBlade.advance(timestamp);
+    this.updateControls();
     this.particles.update(deltaMs);
     this.screenShake = Math.max(0, this.screenShake - deltaMs * 0.055);
     this.updateWindowIndicator();
@@ -2013,6 +1940,7 @@ class GameEngine {
     this.drawCombatAnchors(context);
     this.drawCursorTrail(context);
     this.drawCursor(context);
+    this.drawPlayerBlade(context);
     this.drawCommitCue(context);
     this.drawPhaseTransitionBanner(context);
     this.particles.draw(context);
@@ -2021,9 +1949,9 @@ class GameEngine {
 
   drawBackground(context) {
     const background = context.createRadialGradient(300, 290, 40, 300, 330, 430);
-    background.addColorStop(0, hexToRgba(this.getPhaseAccentColor(), 0.28));
-    background.addColorStop(0.7, "#100f0d");
-    background.addColorStop(1, "#080706");
+    background.addColorStop(0, "#213b49");
+    background.addColorStop(0.7, "#122330");
+    background.addColorStop(1, "#0b1721");
     context.fillStyle = background;
     context.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -2217,7 +2145,6 @@ class GameEngine {
   drawWireframe(context) {
     const phaseAccent = this.getPhaseAccentColor();
     this.currentPattern.segments.forEach(function (segment, index) {
-      const isStrikeSegment = index === this.currentPattern.segments.length - 1;
       const isCurrentSegment = index === this.currentSegmentIndex && this.state === COMBAT_STATE.ATTACKING;
       const isSelectedSegment = this.isEditorMode && index === this.selectedSegmentIndex;
 
@@ -2225,7 +2152,7 @@ class GameEngine {
       context.beginPath();
       context.moveTo(segment.p0.x, segment.p0.y);
       context.bezierCurveTo(segment.p1.x, segment.p1.y, segment.p2.x, segment.p2.y, segment.p3.x, segment.p3.y);
-      context.strokeStyle = isSelectedSegment ? phaseAccent : (isStrikeSegment ? "rgba(255, 69, 0, 0.7)" : hexToRgba(phaseAccent, 0.34));
+      context.strokeStyle = isSelectedSegment ? phaseAccent : hexToRgba(phaseAccent, 0.34);
       context.lineWidth = isSelectedSegment ? 4 : (isCurrentSegment ? 3 : 2);
       context.setLineDash(isSelectedSegment ? [] : [6, 4]);
       context.stroke();
@@ -2272,61 +2199,34 @@ class GameEngine {
       context.restore();
     }.bind(this));
 
-    if (this.isEditorMode) this.drawParryWindowPreview(context);
   }
 
-  drawParryWindowPreview(context) {
-    const preview = this.getParryWindowPreview();
-    const resizeHandle = this.getParryWindowResizeHandle();
-    const sampleCount = clamp(Math.ceil(preview.previewDurationMs / 16), 12, 48);
-
+  drawPlayerBlade(context) {
+    const path=this.playerBlade.path||this.getBladePath();
+    const settings=this.playerBlade.path?this.playerBlade.settings:this.getBladeSettings();
+    const reach=Math.min(path.length,settings.reach), end=PLAYER_BLADE.at(path,reach);
     context.save();
-    context.strokeStyle = "#ff9f1a";
-    context.lineWidth = 4;
-    context.shadowColor = "#ff6a22";
-    context.shadowBlur = 12;
-    context.beginPath();
-    context.moveTo(preview.previewStart.x, preview.previewStart.y);
-    for (let sampleIndex = 1; sampleIndex <= sampleCount; sampleIndex += 1) {
-      const elapsedMs = preview.previewStartMs + preview.previewDurationMs * sampleIndex / sampleCount;
-      const sample = this.evaluateTrajectory(elapsedMs).position;
-      context.lineTo(sample.x, sample.y);
+    context.strokeStyle="#79e8dc";context.lineWidth=4;
+    context.beginPath();context.moveTo(PLAYER_POSITION.x,PLAYER_POSITION.y);
+    for(const p of path.points){if(p.distance>=reach)break;context.lineTo(p.x,p.y);}
+    context.lineTo(end.x,end.y);context.stroke();
+    context.lineWidth=1.5;context.setLineDash([6,5]);
+    context.beginPath();context.arc(PLAYER_POSITION.x,PLAYER_POSITION.y,settings.parryRadius,0,Math.PI*2);context.stroke();context.setLineDash([]);
+    const pos=this.playerBlade.path?PLAYER_BLADE.at(path,this.playerBlade.distance):PLAYER_POSITION;
+    const returning=this.playerBlade.state==="return";
+    context.beginPath();context.arc(pos.x,pos.y,PLAYER_BLADE.radius-(returning?1:0),0,Math.PI*2);
+    context.fillStyle=returning?"#100f0d":"#79e8dc";context.fill();
+    if(returning){context.lineWidth=2;context.stroke();}
+    if(this.isEditorMode){
+      context.fillStyle="#79e8dc";context.fillRect(end.x-5,end.y-5,10,10);
+      context.font="11px Microsoft YaHei";
+      context.fillText("攻击范围 · "+Math.round(reach)+"px",Math.min(450,end.x+12),Math.max(16,end.y));
+      context.fillText("弹反圈 · 拖动虚线边缘",Math.min(420,PLAYER_POSITION.x+12),PLAYER_POSITION.y-settings.parryRadius-8);
+      context.fillText("点选我方刀锋调整速度",15,24);
+      if(!path.points.some(p=>p.distance<=reach&&Math.hypot(p.x-PLAYER_POSITION.x,p.y-PLAYER_POSITION.y)>settings.parryRadius)){
+        context.fillStyle="#ffc178";context.fillText("范围未到圈外：无法产生普通拼刀",15,42);
+      }
     }
-    context.stroke();
-    context.shadowBlur = 0;
-
-    context.beginPath();
-    context.arc(preview.previewStart.x, preview.previewStart.y, 3, 0, Math.PI * 2);
-    context.fillStyle = "#ff9f1a";
-    context.fill();
-
-    context.strokeStyle = "rgba(255, 159, 26, 0.82)";
-    context.lineWidth = 1;
-    context.setLineDash([3, 3]);
-    context.beginPath();
-    context.moveTo(preview.previewStart.x, preview.previewStart.y);
-    context.lineTo(resizeHandle.x, resizeHandle.y);
-    context.stroke();
-    context.setLineDash([]);
-
-    context.save();
-    context.translate(resizeHandle.x, resizeHandle.y);
-    context.rotate(Math.PI / 4);
-    context.fillStyle = "#ff9f1a";
-    context.fillRect(-6, -6, 12, 12);
-    context.strokeStyle = "#1b1713";
-    context.lineWidth = 1.5;
-    context.strokeRect(-6, -6, 12, 12);
-    context.restore();
-    context.fillStyle = "#fff0cf";
-    context.font = "10px Consolas, monospace";
-    const labelX = resizeHandle.x < resizeHandle.anchor.x
-      ? Math.max(8, resizeHandle.x - 56)
-      : Math.min(this.canvas.width - 74, resizeHandle.x + 10);
-    const labelY = resizeHandle.y >= resizeHandle.anchor.y
-      ? Math.min(this.canvas.height - 8, resizeHandle.y + 16)
-      : Math.max(12, resizeHandle.y - 10);
-    context.fillText("W · " + preview.parryWindowMs + "ms", labelX, labelY);
     context.restore();
   }
 
@@ -2443,9 +2343,9 @@ class GameEngine {
 
   drawCommitCue(context) {
     const remainingMs = this.totalDurationMs - this.elapsedMs;
-    if (!this.isCommitCueActive(remainingMs, this.getParryWindowMs())) return;
+    if (!this.isCommitCueActive(remainingMs)) return;
 
-    const cueProgress = clamp((this.getCommitCueLeadMs() - remainingMs) / Math.max(1, this.getCommitCueLeadMs() - this.getParryWindowMs()), 0, 1);
+    const cueProgress = clamp((this.getCommitCueLeadMs() - remainingMs) / Math.max(1, this.getCommitCueLeadMs()), 0, 1);
     const radius = 18 + cueProgress * 16;
     context.save();
     context.strokeStyle = this.getPhaseAccentColor();

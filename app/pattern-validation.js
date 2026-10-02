@@ -131,8 +131,9 @@
       addIssue(errors, "PLAYER_HURTBOX_RADIUS_OUT_OF_RANGE", "playerHurtboxRadius", "玩家受击区半径必须在 " + CONSTRAINTS.minPlayerHurtboxRadius + " 到 " + CONSTRAINTS.maxPlayerHurtboxRadius + "px 之间。");
     }
 
-    if (!Number.isInteger(pattern.parryWindowMs) || pattern.parryWindowMs < CONSTRAINTS.minParryWindowMs || pattern.parryWindowMs > CONSTRAINTS.maxParryWindowMs) {
-      addIssue(errors, "PARRY_WINDOW_OUT_OF_RANGE", "parryWindowMs", "弹反判定窗必须在 " + CONSTRAINTS.minParryWindowMs + " 到 " + CONSTRAINTS.maxParryWindowMs + "ms 之间。");
+    for (const field of ["playerAttackReach", "playerOutSpeed", "playerReturnSpeed", "parryRadius"]) {
+      if (pattern[field] !== undefined && (!isFiniteNumber(pattern[field]) || pattern[field] <= 0))
+        addIssue(errors, "INVALID_PLAYER_BLADE_PARAMETER", field, field + " 必须是有限正数。");
     }
 
     if (!isNonEmptyString(pattern.commitCueLabel)) {
@@ -181,12 +182,10 @@
       });
     }
 
-    if (Number.isInteger(pattern.parryWindowMs) && totalDurationMs > 0 && pattern.parryWindowMs > totalDurationMs) {
-      addIssue(errors, "PARRY_WINDOW_EXCEEDS_TOTAL_DURATION", "parryWindowMs", "弹反判定窗不能长于整招时长。");
-    }
 
-    if (Number.isInteger(pattern.commitCueLeadMs) && totalDurationMs > 0 && (pattern.commitCueLeadMs <= pattern.parryWindowMs || pattern.commitCueLeadMs > totalDurationMs)) {
-      addIssue(errors, "COMMIT_CUE_LEAD_OUT_OF_RANGE", "commitCueLeadMs", "预读信号必须早于弹反窗，且不能早于整招开始。");
+
+    if (Number.isInteger(pattern.commitCueLeadMs) && totalDurationMs > 0 && pattern.commitCueLeadMs > totalDurationMs) {
+      addIssue(errors, "COMMIT_CUE_LEAD_OUT_OF_RANGE", "commitCueLeadMs", "预读信号不能早于整招开始。");
     }
 
     const terminalImpact = getTerminalImpact(pattern, playerPosition);

@@ -1,0 +1,165 @@
+/* Cold-steel training floor. Combat colors retain semantic, not decorative roles. */
+:root {
+  --ink: #101b26;
+  --surface: #182936;
+  --surface-raised: #213746;
+  --line: #354f60;
+  --line-bright: #64818e;
+  --gold: #dbb67b;
+  --gold-bright: #edf1ec;
+  --muted: #a6b9c3;
+  --ember: #edb66b;
+  --red: #bc7274;
+  --green: #87c6b6;
+  --blade: #79e8dc;
+  --text: #edf1ec;
+  color-scheme: dark;
+}
+body {
+  padding: 32px 24px;
+  color: var(--text);
+  background: radial-gradient(ellipse at 50% 10%, #294252, #101b26 75%);
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+#game-container {
+  width: min(1040px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 600px) minmax(280px, 1fr);
+  grid-template-areas: "enemy controls" "arena controls" "player controls" "runtime runtime" "editor editor";
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 24px 80px #030a124d;
+}
+.hud-panel--enemy { grid-area: enemy; }
+.canvas-frame { grid-area: arena; background: #10212d; }
+.hud-panel--player { grid-area: player; }
+#controls-overlay { grid-area: controls; }
+.runtime-editor-bar { grid-area: runtime; }
+.editor-panel { grid-area: editor; }
+.hud-panel { padding: 20px 24px; }
+.hud-panel--enemy, .hud-panel--player {
+  background: #182936;
+  border-color: var(--line);
+}
+.eyebrow { color: var(--muted); text-align: left; letter-spacing: 2px; }
+.hud-title {
+  margin: 7px 0 18px;
+  color: var(--text);
+  text-align: left;
+  font: 600 32px/1.2 "Noto Serif SC", "Songti SC", "SimSun", serif;
+  letter-spacing: 6px;
+}
+.hud-title span { color: var(--muted); margin-left: 10px; letter-spacing: 2px; }
+.combatant-row { font-size: 14px; }
+.boss-personality, .boss-phase-hint, .boss-origin { font-size: 11px; line-height: 1.7; }
+.boss-personality { color: var(--muted); }
+.boss-origin { color: #c5d3d8; }
+.boss-phase-hint { color: #d4dedf; margin-top: 10px; }
+.bar-outer { border: 0; background: #0c1b26; box-shadow: none; border-radius: 2px; height: 6px; }
+.posture-inner { background: linear-gradient(90deg, #99784e, #edbc78); box-shadow: none; }
+.hp-inner { background: linear-gradient(90deg, #497f80, #a3ded0); }
+.bar-label-row { margin-top: 14px; }
+output { color: #c9d9df; }
+#controls-overlay {
+  padding: 28px;
+  align-content: start;
+  gap: 22px;
+  border-top: 0;
+  border-left: 1px solid var(--line);
+  background: #1a2e3c;
+}
+.control-grid { grid-template-columns: 1fr; gap: 20px; }
+.control-group { gap: 8px; }
+.control-group label { color: #d4e0e5; font-size: 12px; }
+select, .editor-panel input, .blade-editor input {
+  color: var(--text);
+  background: #132530;
+  border: 1px solid #526e7c;
+  border-radius: 5px;
+  min-height: 40px;
+}
+select { padding: 9px 10px; }
+.pattern-description, .boss-select-description, .help-text { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.combat-guide { margin: 0; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.combat-guide p { margin: 0 0 8px; font-size: 12px; color: #c0d1d9; line-height: 1.7; }
+.combat-guide p:last-child { margin: 0; }
+.combat-guide strong { color: var(--blade); font-weight: 500; }
+.combat-guide .recovery { display: inline-block; width: 8px; height: 8px; border: 1px solid var(--blade); border-radius: 50%; margin-right: 5px; }
+.combat-guide .outbound { display: inline-block; width: 8px; height: 8px; background: var(--blade); border-radius: 50%; margin-right: 5px; }
+.toggle-group { border: 0; padding: 0; gap: 12px; color: #c0d1d9; font-size: 12px; }
+.toggle-item input { accent-color: var(--blade); }
+.button-group { gap: 10px; }
+button { border-radius: 5px; min-height: 42px; }
+.action-btn, .reset-btn, .editor-entry-btn { color: #d0dde3; border-color: #526e7c; background: #233c4c; box-shadow: none; }
+.action-btn:hover:not(:disabled), .reset-btn:hover, .editor-entry-btn:hover:not(:disabled) { background: #304d5f; border-color: #8aa7b2; box-shadow: none; }
+.parry-btn { color: #102a2d; background: #8dd9cc; border-color: #a6ebdf; box-shadow: none; }
+.parry-btn:hover:not(:disabled) { background: #b0eee2; }
+button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
+.reset-btn, .editor-entry-btn { min-height: 36px; font-size: 12px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #c5efe8; outline-offset: 3px; }
+kbd { background: #132530; color: #c1d3de; border-color: #4b6978; }
+.window-indicator { color: var(--blade); border-color: #4c797c; background: #12232de6; border-radius: 4px; }
+.telegraph-indicator { color: #bdcfd7; background: #12232de6; max-width: 54%; }
+.player-status { color: var(--muted); font-size: 12px; }
+.player-status[data-tone="danger"] { color: #f2a4a0; }
+.player-status[data-tone="success"] { color: #a6e3ce; }
+.runtime-editor-bar, .editor-panel { background: #182936; border-color: var(--line); }
+.runtime-editor-selection, .runtime-editor-help strong { color: #b9e5df; }
+.runtime-editor-help, .runtime-phase-editor__heading p, .runtime-phase-button__detail { color: var(--muted); }
+.runtime-phase-editor, .editor-phase-section, .editor-hurtbox-section { background: #132530; border-color: var(--line); }
+.runtime-phase-button { background: #1d3342; color: #d2e0e6; border-color: var(--line); }
+.runtime-phase-button:hover { background: #294657; }
+.runtime-editor-action--split, .runtime-editor-action--advanced, .runtime-editor-action--exit, .runtime-phase-action { color: #d1e2e7; background: #294252; border-color: #577785; }
+.runtime-editor-action--split:hover:not(:disabled), .runtime-editor-action--advanced:hover:not(:disabled), .runtime-editor-action--exit:hover:not(:disabled), .runtime-phase-action:hover:not(:disabled) { background: #355467; border-color: #8daab4; }
+.runtime-editor-action--delete, .runtime-phase-action--delete { color: #ffd0c7; background: #473137; border-color: #95676b; }
+.blade-editor {
+  position: absolute; left: 12px; right: 12px; top: 52px; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: end; gap: 12px;
+  padding: 14px; color: #d2e4e6; background: #182d39f5;
+  border: 1px solid #77b4b2; border-radius: 7px; box-shadow: 0 12px 30px #0005;
+}
+.blade-editor[hidden] { display: none; }
+.blade-editor label { display: grid; gap: 5px; font-size: 11px; }
+.blade-editor input { width: 110px; padding: 5px 8px; }
+.blade-editor button { padding: 8px 14px; background: #8dd9cc; color: #102a2d; }
+.editor-panel input:not([type="checkbox"]), .editor-panel select {
+  color: var(--text); background: #132530; border-color: #526e7c; border-radius: 5px;
+}
+.editor-fieldset, .editor-local-note { background: #132530; border-color: #526e7c; }
+.editor-local-note, .editor-canvas-help, .editor-continuity-note, .editor-hurtbox-help,
+.editor-pattern-field label, .editor-field-grid label, .editor-point-group label,
+.editor-hurtbox-controls label, .editor-section__heading p, .editor-segment-button__details {
+  color: var(--muted);
+}
+.editor-close-btn, .editor-reset-btn, .editor-add-btn, .editor-segment-button {
+  color: #d2e0e6; background: #233c4c; border-color: #526e7c;
+}
+.editor-close-btn:hover, .editor-reset-btn:hover, .editor-add-btn:hover, .editor-segment-button:hover {
+  background: #304d5f; border-color: #8aa7b2;
+}
+.editor-segment-button.is-selected, .editor-segment-button[aria-pressed="true"] {
+  background: #294952; color: #e1f4ed; border-color: #8dd9cc; box-shadow: inset 3px 0 0 #8dd9cc;
+}
+#deathblow-overlay { background: #0c1b27ed; }
+.deathblow-kanji { color: #efc38a; text-shadow: 0 0 32px #bc875047; }
+.deathblow-sub { color: #c5d4dc; }
+.deathblow-action { color: #182936; background: #e6bd84; border-color: #f4d4a5; box-shadow: none; }
+.deathblow-action:hover { background: #f4d4a5; }
+@media (max-width: 900px) {
+  body { padding: 16px 10px; }
+  #game-container { max-width: 600px; display: block; }
+  #controls-overlay { border-left: 0; border-top: 1px solid var(--line); padding: 20px; }
+  .hud-panel { padding: 16px 20px; }
+  .hud-title { font-size: 28px; }
+}
+@media (max-width: 420px) {
+  .hud-panel { padding: 14px; }
+  .telegraph-indicator { top: 40px; max-width: 88%; }
+  .window-indicator { font-size: 9px; }
+  .blade-editor { top: 70px; gap: 8px; }
+  .blade-editor input { width: 94px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

@@ -1,5 +1,7 @@
 # BladeTrace 架构设计（拟议，尚未重构）
 
+> 当前规则更新：下文时间窗描述属于早期架构草案，已被[空间弹反](spatial-parry.md)取代。现有 `app/player-blade.js` 已提取弧长路径、独立出刀／收刀状态和扫掠碰撞；`app/combat-audio.js` 管理已选录音。后续 CombatSession 应以刀锋接触事件和圈内／圈外分类为准，不再恢复毫秒窗。`app/theme.css` 承载冷钢视觉主题。
+
 > 当前交付仍是零依赖静态网页。浏览器整合位于 [`app/game.js`](../app/game.js)，阶段 1 已引入纯规则 [`app/pattern-validation.js`](../app/pattern-validation.js) 和纯数据 [`app/attack-patterns.js`](../app/attack-patterns.js)，其中已包含 Boss 阶段验证与解析。本文件描述尚未实施的完整重构计划。
 
 ## 目标与边界
